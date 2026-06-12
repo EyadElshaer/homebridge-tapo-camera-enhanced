@@ -539,7 +539,7 @@ export class TAPOCamera extends OnvifCamera {
       try {
         const url = await this.getAuthenticatedAPIURL(loginRetryCount);
 
-        let fetchParams: Record<string, unknown> = { method: "post" };
+        const fetchParams: Record<string, unknown> = { method: "post" };
         const isSecureConnection = await this.isSecureConnection();
 
         if (this.seq && isSecureConnection) {
@@ -798,7 +798,7 @@ export class TAPOCamera extends OnvifCamera {
             get_wtl_status: ["null"],
           },
         },
-      } as any);
+      } as TAPOCameraGetRequest);
     }
 
     const responseData = await this.apiRequest({
@@ -845,7 +845,7 @@ export class TAPOCamera extends OnvifCamera {
         : undefined,
       led: led ? led.result.led.config.enabled === "on" : undefined,
       floodLight: wtlStatus && wtlStatus.error_code === 0 && "image" in wtlStatus.result && "get_wtl_status" in wtlStatus.result.image
-        ? (wtlStatus.result.image.get_wtl_status as any).status === "on" || (wtlStatus.result.image.get_wtl_status as any).status === "1"
+        ? (wtlStatus.result.image.get_wtl_status as Record<string, unknown>).status === "on" || (wtlStatus.result.image.get_wtl_status as Record<string, unknown>).status === "1"
         : undefined,
     };
   }

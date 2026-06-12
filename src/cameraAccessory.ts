@@ -112,6 +112,7 @@ export class CameraAccessory {
   private setupToggleAccessory(
     name: string,
     tapoServiceStr: keyof Status,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     serviceType: any = this.api.hap.Service.Switch
   ) {
     try {
