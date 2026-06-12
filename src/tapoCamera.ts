@@ -306,7 +306,7 @@ export class TAPOCamera extends OnvifCamera {
 
         if (!responseData) {
           this.log.debug(
-            "refreshStock: empty response start_seq data, raising exception",
+            "refreshStok: empty response start_seq data, raising exception",
             response.status
           );
           throw new Error("Empty response start_seq data");
@@ -320,7 +320,7 @@ export class TAPOCamera extends OnvifCamera {
 
         if (responseData.result?.start_seq) {
           if (responseData.result?.user_group !== "root") {
-            this.log.debug("refreshStock: Incorrect user_group detected");
+            this.log.debug("refreshStok: Incorrect user_group detected");
 
             // # encrypted control via 3rd party account does not seem to be supported
             // # see https://github.com/JurajNyiri/HomeAssistant-Tapo-Control/issues/456
@@ -338,7 +338,7 @@ export class TAPOCamera extends OnvifCamera {
           loginRetryCount < MAX_LOGIN_RETRIES
         ) {
           this.log.debug(
-            `refreshStock: Invalid device confirm, retrying: ${loginRetryCount}/${MAX_LOGIN_RETRIES}.`,
+            `refreshStok: Invalid device confirm, retrying: ${loginRetryCount}/${MAX_LOGIN_RETRIES}.`,
             responseLogin.status,
             responseLoginData
           );
@@ -346,7 +346,7 @@ export class TAPOCamera extends OnvifCamera {
         }
 
         this.log.debug(
-          "refreshStock: Invalid device confirm and loginRetryCount exhausted, raising exception",
+          "refreshStok: Invalid device confirm and loginRetryCount exhausted, raising exception",
           loginRetryCount,
           responseLoginData
         );
@@ -389,7 +389,7 @@ export class TAPOCamera extends OnvifCamera {
       loginRetryCount < MAX_LOGIN_RETRIES
     ) {
       this.log.debug(
-        `refreshStock: Unexpected response, retrying: ${loginRetryCount}/${MAX_LOGIN_RETRIES}.`,
+        `refreshStok: Unexpected response, retrying: ${loginRetryCount}/${MAX_LOGIN_RETRIES}.`,
         response.status,
         responseData
       );
