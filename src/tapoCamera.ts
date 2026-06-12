@@ -11,6 +11,7 @@ import type {
   TAPOCameraRequest,
   TAPOCameraResponse,
   TAPOCameraResponseDeviceInfo,
+  TAPOCameraGetRequest,
   TAPOCameraSetRequest,
 } from "./types/tapo";
 import { Agent } from "undici";
@@ -38,6 +39,7 @@ export type Status = {
   notifications: boolean | undefined;
   motionDetection: boolean | undefined;
   led: boolean | undefined;
+  floodLight: boolean | undefined;
 };
 
 export class TAPOCamera extends OnvifCamera {
@@ -692,6 +694,16 @@ export class TAPOCamera extends OnvifCamera {
         },
       },
     }),
+    floodLight: (value) => ({
+      method: "setLdc",
+      params: {
+        image: {
+          switch: {
+            force_wtl_state: value ? "on" : "off",
+          },
+        },
+      },
+    }),
   };
 
   async setStatus(service: keyof Status, value: boolean) {
@@ -740,51 +752,64 @@ export class TAPOCamera extends OnvifCamera {
   }
 
   async getStatus(): Promise<Status> {
+    const requests: (TAPOCameraGetRequest | TAPOCameraSetRequest)[] = [
+      {
+        method: "getAlertConfig",
+        params: {
+          msg_alarm: {
+            name: "chn1_msg_alarm_info",
+          },
+        },
+      },
+      {
+        method: "getLensMaskConfig",
+        params: {
+          lens_mask: {
+            name: "lens_mask_info",
+          },
+        },
+      },
+      {
+        method: "getMsgPushConfig",
+        params: {
+          msg_push: {
+            name: "chn1_msg_push_info",
+          },
+        },
+      },
+      {
+        method: "getDetectionConfig",
+        params: {
+          motion_detection: {
+            name: "motion_det",
+          },
+        },
+      },
+      {
+        method: "getLedStatus",
+        params: {
+          led: {
+            name: "config",
+          },
+        },
+      },
+    ];
+
+    if (this.config.enableFloodLightAccessory) {
+      requests.push({
+        method: "getWhitelampStatus",
+        params: {
+          image: {
+            get_wtl_status: ["null"],
+          },
+        },
+      } as any);
+    }
+
     const responseData = await this.apiRequest({
       method: "multipleRequest",
       params: {
-        requests: [
-          {
-            method: "getAlertConfig",
-            params: {
-              msg_alarm: {
-                name: "chn1_msg_alarm_info",
-              },
-            },
-          },
-          {
-            method: "getLensMaskConfig",
-            params: {
-              lens_mask: {
-                name: "lens_mask_info",
-              },
-            },
-          },
-          {
-            method: "getMsgPushConfig",
-            params: {
-              msg_push: {
-                name: "chn1_msg_push_info",
-              },
-            },
-          },
-          {
-            method: "getDetectionConfig",
-            params: {
-              motion_detection: {
-                name: "motion_det",
-              },
-            },
-          },
-          {
-            method: "getLedStatus",
-            params: {
-              led: {
-                name: "config",
-              },
-            },
-          },
-        ],
+        requests,
       },
     });
 
@@ -799,12 +824,14 @@ export class TAPOCamera extends OnvifCamera {
       (r) => r.method === "getDetectionConfig"
     );
     const led = operations.find((r) => r.method === "getLedStatus");
+    const wtlStatus = operations.find((r) => r.method === "getWhitelampStatus");
 
     if (!alert) this.log.debug("No alert config found");
     if (!lensMask) this.log.debug("No lens mask config found");
     if (!notifications) this.log.debug("No notifications config found");
     if (!motionDetection) this.log.debug("No motion detection config found");
     if (!led) this.log.debug("No led config found");
+    if (this.config.enableFloodLightAccessory && !wtlStatus) this.log.debug("No whitelamp status found");
 
     return {
       alarm: alert
@@ -822,6 +849,9 @@ export class TAPOCamera extends OnvifCamera {
         ? motionDetection.result.motion_detection.motion_det.enabled === "on"
         : undefined,
       led: led ? led.result.led.config.enabled === "on" : undefined,
+      floodLight: wtlStatus && wtlStatus.error_code === 0 && "image" in wtlStatus.result && "get_wtl_status" in wtlStatus.result.image
+        ? (wtlStatus.result.image.get_wtl_status as any).status === "on" || (wtlStatus.result.image.get_wtl_status as any).status === "1"
+        : undefined,
     };
   }
 }
