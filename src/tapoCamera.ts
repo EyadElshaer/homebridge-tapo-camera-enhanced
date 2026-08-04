@@ -690,7 +690,10 @@ export class TAPOCamera extends OnvifCamera {
       },
     }),
     floodLight: (value) => ({
-      method: "setLdc",
+      // Floodlight state belongs to the white-lamp API. setLdc controls lens
+      // distortion correction, so using it here accepts the request shape in
+      // TypeScript but leaves the physical light unchanged on the camera.
+      method: "setWhitelampConfig",
       params: {
         image: {
           switch: {

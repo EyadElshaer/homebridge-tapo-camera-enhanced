@@ -137,16 +137,6 @@ export type TAPOCameraSetRequest =
           };
         };
       };
-    }
-  | {
-      method: "setLdc";
-      params: {
-        image: {
-          switch: {
-            force_wtl_state: "on" | "off";
-          };
-        };
-      };
     };
 
 export type TAPOCameraUnencryptedRequest = {
