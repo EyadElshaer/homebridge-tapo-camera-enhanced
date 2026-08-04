@@ -5,5 +5,5 @@
 
 ## Development & Publishing
 - The project is written in TypeScript and uses `npm`.
-- **Publishing to npm:** Do NOT run `npm publish` locally. The project uses a GitHub Actions workflow (`.github/workflows/publish.yml`) that automatically publishes to npm via OIDC when a new version tag (e.g., `v2.9.0`) is pushed to GitHub. 
-- To release a new version, simply use `npm version <major|minor|patch>` and push the resulting commit and tag to GitHub (`git push --follow-tags`).
+- **Publishing to npm:** Do NOT run `npm publish` locally. Every non-automation commit pushed to `main` runs `.github/workflows/publish.yml`, which increments the patch version, publishes to npm through OIDC, pushes the version commit and tag, and creates a GitHub Release with generated notes.
+- The workflow's own `chore: release` commit is intentionally excluded from starting another release.
