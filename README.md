@@ -80,6 +80,17 @@ Set `disableStreaming` to `true` to skip the Homebridge camera stream while keep
 
 To keep the ONVIF motion sensor enabled, provide `streamUser` and `streamPassword` from the TAPO app camera account.
 
+#### RTSP transport
+
+Camera streams use UDP by default. Set `rtspTransport` to `"tcp"` for a camera if UDP is unreliable on your network.
+
+```json
+{
+  "name": "My Camera",
+  "rtspTransport": "tcp"
+}
+```
+
 ### FFmpeg installation
 
 The plugin should take care of installing the `ffmpeg` automatically.

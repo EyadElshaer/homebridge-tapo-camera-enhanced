@@ -32,6 +32,7 @@ export type CameraConfig = {
 
   disableMotionSensorAccessory?: boolean;
   lowQuality?: boolean;
+  rtspTransport?: "udp" | "tcp";
 
   videoMaxWidth?: number;
   videoMaxHeight?: number;
@@ -227,7 +228,7 @@ export class CameraAccessory {
       mapaudio: "0:a:0 -af aresample=async=16000",
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport tcp -i ${streamUrl}`,
+      source: `-rtsp_transport ${this.config.rtspTransport ?? "udp"} -i ${streamUrl}`,
     };
 
     this.log.debug("Video config", config);

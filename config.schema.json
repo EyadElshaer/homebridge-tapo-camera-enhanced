@@ -105,6 +105,16 @@
             "type": "boolean",
             "description": "Video stream will be requested in low-quality instead of high-quality"
           },
+          "rtspTransport": {
+            "title": "RTSP Transport",
+            "type": "string",
+            "default": "udp",
+            "enum": [
+              "udp",
+              "tcp"
+            ],
+            "description": "Transport protocol used to receive the camera RTSP stream. UDP is the default; try TCP if UDP is unreliable on your network."
+          },
           "eyesToggleAccessoryName": {
             "title": "Eyes (privacy mode) toggle Name",
             "type": "string",
