@@ -32,16 +32,35 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm ci
 
-      - name: Create patch version
+      - name: Determine release version
         id: version
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # The release commit remains in the repository so package.json, the npm
-          # artifact, the Git tag, and the GitHub Release always describe one version.
-          npm version patch -m "chore: release v%s [skip ci]"
-          echo "tag=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+          current_version=$(node -p "require('./package.json').version")
+          previous_version=$(git show HEAD^:package.json | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
+
+          if [ "$current_version" = "$previous_version" ]; then
+            # The release commit remains in the repository so package.json, the npm
+            # artifact, the Git tag, and the GitHub Release always describe one version.
+            npm version patch -m "chore: release v%s [skip ci]"
+            current_version=$(node -p "require('./package.json').version")
+          else
+            # Respect an intentional version change included in the pushed commit.
+            # npm version is skipped, but the release still needs a tag at this commit.
+            tag="v$current_version"
+            if git rev-parse --verify --quiet "refs/tags/$tag" >/dev/null; then
+              if [ "$(git rev-list -n 1 "$tag")" != "$(git rev-parse HEAD)" ]; then
+                echo "Tag $tag already points to a different commit" >&2
+                exit 1
+              fi
+            else
+              git tag -a "$tag" -m "$tag"
+            fi
+          fi
+
+          echo "tag=v$current_version" >> "$GITHUB_OUTPUT"
 
       - name: Push version commit and tag
         run: git push origin HEAD:main --follow-tags
