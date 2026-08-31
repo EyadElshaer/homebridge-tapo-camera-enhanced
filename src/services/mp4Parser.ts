@@ -18,30 +18,17 @@ export async function readLength(
     return Buffer.alloc(0);
   }
 
-  // Attempt synchronous read first
-  const initial = readable.read(length) as Buffer | null;
-  if (initial) {
-    if (initial.length === length) {
-      return initial;
-    } else if (initial.length > length) {
-      readable.unshift(initial.subarray(length));
-      return initial.subarray(0, length);
-    }
-  }
-
   return new Promise<Buffer>((resolve, reject) => {
     const buffers: Buffer[] = [];
     let accumulated = 0;
 
-    if (initial && initial.length > 0) {
-      buffers.push(initial);
-      accumulated += initial.length;
-    }
-
     const onReadable = () => {
       while (accumulated < length) {
         const needed = length - accumulated;
-        const chunk = readable.read(needed) as Buffer | null;
+        let chunk = readable.read(needed) as Buffer | null;
+        if (!chunk) {
+          chunk = readable.read() as Buffer | null;
+        }
         if (!chunk) {
           break;
         }

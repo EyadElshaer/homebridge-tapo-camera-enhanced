@@ -100,9 +100,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
     ];
 
     const videoArguments: string[] = [];
-    const vcodec =
-      this.cameraConfig.hksvConfig?.vcodec ||
-      (this.cameraConfig.videoCodec === "copy" ? "copy" : "libx264");
+    const vcodec = this.cameraConfig.hksvConfig?.vcodec || "libx264";
 
     const profile =
       this.configuration.videoCodec.parameters.profile ===

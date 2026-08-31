@@ -73,10 +73,46 @@ async function testParseFragmentedMP4() {
   console.log("✓ parseFragmentedMP4 passed");
 }
 
+async function testLargeAtoms() {
+  const payloadSize = 300 * 1024; // 300KB
+  const payloadBuf = Buffer.alloc(payloadSize, 0xaa);
+  const len = payloadSize + 8;
+  const header = Buffer.alloc(8);
+  header.writeUInt32BE(len, 0);
+  header.write("mdat", 4, 4, "latin1");
+
+  const fullAtom = Buffer.concat([header, payloadBuf]);
+
+  // Break full atom into small 4KB chunks
+  const chunks: Buffer[] = [];
+  const chunkSize = 4096;
+  for (let i = 0; i < fullAtom.length; i += chunkSize) {
+    chunks.push(fullAtom.subarray(i, Math.min(i + chunkSize, fullAtom.length)));
+  }
+
+  const stream = Readable.from(chunks);
+  const parsed: { type: string; length: number; dataLen: number }[] = [];
+
+  for await (const box of parseFragmentedMP4(stream)) {
+    parsed.push({
+      type: box.type,
+      length: box.length,
+      dataLen: box.data.length,
+    });
+  }
+
+  if (parsed.length !== 1 || parsed[0].type !== "mdat" || parsed[0].dataLen !== payloadSize) {
+    throw new Error(`Large atom test failed: ${JSON.stringify(parsed)}`);
+  }
+
+  console.log("✓ testLargeAtoms passed");
+}
+
 async function runTests() {
   try {
     await testReadLength();
     await testParseFragmentedMP4();
+    await testLargeAtoms();
     console.log("All MP4 parser tests passed successfully!");
   } catch (err) {
     console.error("Test failed:", err);
@@ -85,3 +121,4 @@ async function runTests() {
 }
 
 runTests();
+
