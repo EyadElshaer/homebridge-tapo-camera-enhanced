@@ -50,6 +50,21 @@ Make sure you activate "Activity Notifications" in the "Status and Notifications
 > [!NOTE]  
 > Some people may have issues resulting the plugin crashing at startup when this option is enabled. If you see an error like `Error: read ECONNRESET at TCP.onStreamRead` try to disable the motion sensor by setting `disableMotionSensorAccessory` to `true`
 
+### HomeKit Secure Video
+
+Enable `hsv` for a camera to turn on HomeKit Secure Video recording support.
+
+When this is enabled, the plugin switches the camera-ffmpeg stream into recording mode and turns on prebuffering automatically so HomeKit can create HSV clips from motion events.
+
+```json
+{
+  "name": "My Camera",
+  "hsv": true
+}
+```
+
+HomeKit Secure Video requires a Home hub and an iCloud plan that supports HSV, and Homebridge 1.4.0-beta.4 or newer.
+
 ## Installation
 
 You can install it via Homebridge UI or manually using:

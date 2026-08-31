@@ -12,6 +12,7 @@ import { PLUGIN_ID } from "./pkg";
 import { CameraPlatform } from "./cameraPlatform";
 import { VideoConfig } from "homebridge-camera-ffmpeg/dist/configTypes";
 import { TAPOBasicInfo } from "./types/tapo";
+import { RecordingDelegate, HKSVConfig } from "./services/recordingDelegate";
 
 export type CameraConfig = {
   name: string;
@@ -23,6 +24,10 @@ export type CameraConfig = {
 
   pullInterval?: number;
   disableStreaming?: boolean;
+  debug?: boolean;
+  hsv?: boolean;
+  prebufferLength?: number;
+  hksvConfig?: HKSVConfig;
   disableEyesToggleAccessory?: boolean;
   disableAlarmToggleAccessory?: boolean;
   disableNotificationsToggleAccessory?: boolean;
@@ -260,7 +265,166 @@ export class CameraAccessory {
         this.api.hap
       );
 
-      this.accessory.configureController(delegate.controller);
+      let isHsvSupported = true;
+      if (
+        this.config.hsv &&
+        typeof this.api.versionGreaterOrEqual === "function" &&
+        !this.api.versionGreaterOrEqual("1.4.0")
+      ) {
+        this.log.warn(
+          "HSV cannot be activated. Incompatible Homebridge version detected! You must have at least Homebridge v1.4.0 installed."
+        );
+        isHsvSupported = false;
+      }
+
+      if (this.config.hsv && isHsvSupported) {
+        this.log.info("Initializing HomeKit Secure Video (HSV)...");
+
+        const recordingDelegate = new RecordingDelegate(
+          this.log,
+          this.config,
+          this.api,
+          this.api.hap,
+          this.camera,
+          () => {
+            if (!this.motionSensorService) return false;
+            return Boolean(
+              this.motionSensorService.getCharacteristic(
+                this.api.hap.Characteristic.MotionDetected
+              ).value
+            );
+          },
+          () => {
+            const operatingMode = this.accessory.getService(
+              this.api.hap.Service.CameraOperatingMode
+            );
+            if (!operatingMode) return true;
+            const char = operatingMode.getCharacteristic(
+              this.api.hap.Characteristic.RecordingAudioActive
+            );
+            return char ? Boolean(char.value) : true;
+          }
+        );
+
+        const recordingCodecs = [
+          {
+            type: this.api.hap.AudioRecordingCodecType.AAC_LC,
+            bitrateMode: 0,
+            samplerate: [this.api.hap.AudioRecordingSamplerate.KHZ_32],
+            audioChannels: 1,
+          },
+          {
+            type: this.api.hap.AudioRecordingCodecType.AAC_ELD,
+            bitrateMode: 0,
+            samplerate: [this.api.hap.AudioRecordingSamplerate.KHZ_32],
+            audioChannels: 1,
+          },
+        ];
+
+        const controller = new this.api.hap.CameraController({
+          cameraStreamCount: this.config.videoConfig?.maxStreams || 2,
+          delegate: delegate,
+          streamingOptions: {
+            supportedCryptoSuites: [
+              this.api.hap.SRTPCryptoSuites.AES_CM_128_HMAC_SHA1_80,
+            ],
+            video: {
+              resolutions: [
+                [320, 180, 30],
+                [320, 240, 15],
+                [320, 240, 30],
+                [480, 270, 30],
+                [480, 360, 30],
+                [640, 360, 30],
+                [640, 480, 30],
+                [1280, 720, 30],
+                [1280, 960, 30],
+                [1920, 1080, 30],
+                [1600, 1200, 30],
+              ],
+              codec: {
+                profiles: [
+                  this.api.hap.H264Profile.BASELINE,
+                  this.api.hap.H264Profile.MAIN,
+                  this.api.hap.H264Profile.HIGH,
+                ],
+                levels: [
+                  this.api.hap.H264Level.LEVEL3_1,
+                  this.api.hap.H264Level.LEVEL3_2,
+                  this.api.hap.H264Level.LEVEL4_0,
+                ],
+              },
+            },
+            audio: {
+              twoWayAudio: !!this.config.videoConfig?.returnAudioTarget,
+              codecs: [
+                {
+                  type: this.api.hap.AudioStreamingCodecType.AAC_ELD,
+                  samplerate: this.api.hap.AudioStreamingSamplerate.KHZ_16,
+                },
+              ],
+            },
+          },
+          recording: {
+            options: {
+              overrideEventTriggerOptions: [
+                this.api.hap.EventTriggerOption.MOTION,
+              ],
+              prebufferLength: (this.config.prebufferLength || 4) * 1000,
+              mediaContainerConfiguration: [
+                {
+                  type: this.api.hap.MediaContainerType.FRAGMENTED_MP4,
+                  fragmentLength: 4000,
+                },
+              ],
+              video: {
+                type: this.api.hap.VideoCodecType.H264,
+                parameters: {
+                  profiles: [
+                    this.api.hap.H264Profile.BASELINE,
+                    this.api.hap.H264Profile.MAIN,
+                    this.api.hap.H264Profile.HIGH,
+                  ],
+                  levels: [
+                    this.api.hap.H264Level.LEVEL3_1,
+                    this.api.hap.H264Level.LEVEL3_2,
+                    this.api.hap.H264Level.LEVEL4_0,
+                  ],
+                },
+                resolutions: [
+                  [320, 180, 30],
+                  [320, 240, 15],
+                  [320, 240, 30],
+                  [480, 270, 30],
+                  [480, 360, 30],
+                  [640, 360, 30],
+                  [640, 480, 30],
+                  [1280, 720, 30],
+                  [1280, 960, 30],
+                  [1920, 1080, 30],
+                  [1600, 1200, 30],
+                ],
+              },
+              audio: {
+                codecs: recordingCodecs,
+              },
+            },
+            delegate: recordingDelegate,
+          },
+          sensors: {
+            motion: this.motionSensorService || true,
+          },
+        });
+
+        // Keep delegate internal controller reference synced
+        // @ts-expect-error - internal controller reassignment
+        delegate.controller = controller;
+
+        this.accessory.configureController(controller);
+        this.log.info("HomeKit Secure Video (HSV) configured successfully");
+      } else {
+        this.accessory.configureController(delegate.controller);
+      }
 
       this.log.debug("Camera streaming setup done");
     } catch (err) {
@@ -372,8 +536,12 @@ export class CameraAccessory {
 
     this.setupInfoAccessory(basicInfo);
 
+    if (!this.config.disableMotionSensorAccessory) {
+      await this.setupMotionSensorAccessory();
+    }
+
     if (!this.config.disableStreaming) {
-      this.setupCameraStreaming(basicInfo);
+      await this.setupCameraStreaming(basicInfo);
     }
 
     if (!this.config.disableEyesToggleAccessory) {
@@ -417,10 +585,6 @@ export class CameraAccessory {
         "floodLight",
         this.api.hap.Service.Lightbulb
       );
-    }
-
-    if (!this.config.disableMotionSensorAccessory) {
-      this.setupMotionSensorAccessory();
     }
 
     // // Publish as external accessory

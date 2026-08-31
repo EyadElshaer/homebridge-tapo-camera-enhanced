@@ -1,7 +1,7 @@
 {
-  "displayName": "Homebridge TAPO Camera",
-  "name": "homebridge-tapo-camera",
-  "version": "2.9.6",
+  "displayName": "Homebridge TAPO Camera Enhanced",
+  "name": "homebridge-tapo-camera-enhanced",
+  "version": "1.0.0-beta.1",
   "description": "Homebridge plugin for TP-Link TAPO security cameras",
   "main": "dist/index.js",
   "license": "ISC",
@@ -18,7 +18,7 @@
     "tplink"
   ],
   "bugs": {
-    "url": "https://github.com/kopiro/homebridge-tapo-camera/issues"
+    "url": "https://github.com/EyadElshaer/homebridge-tapo-camera-enhanced/issues"
   },
   "engines": {
     "node": "^18.13.0 || ^20.16.0 || ^22.5.1 || ^24.12.0",
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/kopiro/homebridge-tapo-camera"
+    "url": "https://github.com/EyadElshaer/homebridge-tapo-camera-enhanced"
   },
   "files": [
     "dist",
@@ -34,13 +34,11 @@
     "config.schema.json"
   ],
   "author": {
-    "name": "Flavio De Stefano",
-    "email": "destefano.flavio@gmail.com",
-    "url": "https://www.kopiro.me"
+    "name": "elshaer"
   },
   "funding": {
     "type": "paypal",
-    "url": "https://www.paypal.me/kopiro"
+    "url": "https://www.paypal.com/paypalme/eelshaerr"
   },
   "dependencies": {
     "homebridge-camera-ffmpeg": "^3.1.4",

@@ -65,6 +65,92 @@
             "type": "boolean",
             "description": "Disables the video feed accessory"
           },
+          "hsv": {
+            "title": "HomeKit Secure Video (HSV)",
+            "type": "boolean",
+            "default": false,
+            "description": "Enables HomeKit Secure Video for this camera. When enabled, the camera stream is also configured for recording and motion-triggered event clips in Apple Home.",
+            "condition": {
+              "functionBody": "return model.cameras[arrayIndices[0]].disableStreaming !== true;"
+            }
+          },
+          "hksvConfig": {
+            "title": "HSV Advanced Options",
+            "type": "object",
+            "description": "Optional advanced video and audio encoding configuration for HomeKit Secure Video recordings.",
+            "condition": {
+              "functionBody": "return model.cameras[arrayIndices[0]].hsv === true && model.cameras[arrayIndices[0]].disableStreaming !== true;"
+            },
+            "properties": {
+              "source": {
+                "title": "Custom Recording Source",
+                "type": "string",
+                "description": "Custom stream input for HSV recordings (leave empty to use the default RTSP feed)."
+              },
+              "vcodec": {
+                "title": "Recording Video Codec",
+                "type": "string",
+                "default": "libx264",
+                "typeahead": {
+                  "source": [
+                    "libx264",
+                    "copy",
+                    "h264_omx",
+                    "h264_videotoolbox"
+                  ]
+                },
+                "description": "Video encoder for HSV recordings. Default is 'libx264' (transcoding for full HomeKit compatibility) or 'copy'."
+              },
+              "acodec": {
+                "title": "Recording Audio Codec",
+                "type": "string",
+                "default": "aac",
+                "typeahead": {
+                  "source": [
+                    "aac",
+                    "libfdk_aac"
+                  ]
+                },
+                "description": "Audio codec for HSV recording. Default is 'aac'."
+              },
+              "audio": {
+                "title": "Record Audio",
+                "type": "boolean",
+                "default": true,
+                "description": "Include audio in HomeKit Secure Video recordings."
+              },
+              "maxWidth": {
+                "title": "Recording Max Width",
+                "type": "integer",
+                "placeholder": 1920,
+                "description": "Override maximum video width for HSV recordings."
+              },
+              "maxHeight": {
+                "title": "Recording Max Height",
+                "type": "integer",
+                "placeholder": 1080,
+                "description": "Override maximum video height for HSV recordings."
+              },
+              "maxFPS": {
+                "title": "Recording Max FPS",
+                "type": "integer",
+                "placeholder": 30,
+                "description": "Override maximum framerate for HSV recordings."
+              },
+              "maxBitrate": {
+                "title": "Recording Max Bitrate",
+                "type": "integer",
+                "placeholder": 2000,
+                "description": "Override maximum bitrate (in kbit/s) for HSV recordings."
+              },
+              "encoderOptions": {
+                "title": "Custom Encoder Options",
+                "type": "string",
+                "placeholder": "-preset ultrafast -tune zerolatency",
+                "description": "Custom FFmpeg encoding parameters for HSV video."
+              }
+            }
+          },
           "disableEyesToggleAccessory": {
             "title": "Disable Eyes toggle",
             "type": "boolean",
