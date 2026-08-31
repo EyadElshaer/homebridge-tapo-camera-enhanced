@@ -102,18 +102,18 @@ export class NightVisionDetector extends EventEmitter {
   /**
    * Start periodic background darkness polling.
    */
-  public start(intervalSeconds = 30): void {
+  public start(intervalSeconds = 5): void {
     this.stop();
-    const intervalMs = Math.max(10, intervalSeconds) * 1000;
+    const intervalMs = Math.max(1, intervalSeconds) * 1000;
 
     this.pollTimer = setInterval(() => {
       void this.checkDarkness();
     }, intervalMs);
 
-    // Initial check with random jitter
+    // Initial fast check
     setTimeout(() => {
       void this.checkDarkness();
-    }, 2000 + Math.random() * 3000);
+    }, 500);
   }
 
   /**
@@ -129,7 +129,7 @@ export class NightVisionDetector extends EventEmitter {
   /**
    * Trigger an immediate check with debouncing (e.g. on motion detected).
    */
-  public triggerCheck(debounceMs = 5000): void {
+  public triggerCheck(debounceMs = 1000): void {
     const now = Date.now();
     if (now - this.lastCheckTime < debounceMs) {
       this.log.debug(
@@ -165,6 +165,14 @@ export class NightVisionDetector extends EventEmitter {
         "error",
         "-rtsp_transport",
         rtspTransport,
+        "-flags",
+        "low_delay",
+        "-fflags",
+        "+nobuffer+discardcorrupt",
+        "-probesize",
+        "32768",
+        "-analyzeduration",
+        "0",
         "-i",
         streamUrl,
         "-vframes",
@@ -230,9 +238,9 @@ export class NightVisionDetector extends EventEmitter {
           } catch {
             // ignore
           }
-          reject(new Error("FFmpeg frame capture timed out after 8000ms"));
+          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
         }
-      }, 8000);
+      }, 4000);
 
       ffmpeg.stdout.on("data", (chunk: Buffer) => {
         chunks.push(chunk);

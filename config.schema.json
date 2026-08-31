@@ -240,9 +240,10 @@
           "nightVisionPollInterval": {
             "title": "Darkness Check Interval (seconds)",
             "type": "integer",
-            "placeholder": 30,
-            "default": 30,
-            "description": "Frequency in seconds to sample the camera's day/night state in the background (default: 30s). Note: An immediate check is also triggered automatically whenever motion is detected.",
+            "placeholder": 5,
+            "default": 5,
+            "minimum": 1,
+            "description": "Frequency in seconds to sample the camera's day/night state in the background (default: 5s). Note: An immediate check is also triggered automatically whenever motion is detected.",
             "condition": {
               "functionBody": "return model.cameras[arrayIndices[0]].enableNightVisionSensor === true;"
             }

@@ -673,7 +673,7 @@ export class CameraAccessory {
         }
       });
 
-      const pollInterval = this.config.nightVisionPollInterval || 30;
+      const pollInterval = this.config.nightVisionPollInterval || 5;
       this.nightVisionDetector.start(pollInterval);
     } catch (err) {
       this.log.error("Error setting up night vision sensor accessory:", err);
