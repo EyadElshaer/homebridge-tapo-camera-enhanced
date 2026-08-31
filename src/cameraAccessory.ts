@@ -211,24 +211,20 @@ export class CameraAccessory {
           }
         })
         .onSet(async (newValue) => {
-          const value = Boolean(newValue);
-          this.log.debug(
-            `Setting "${tapoServiceStr}" to ${value ? "on" : "off"}...`
-          );
-          this.cachedStatus[tapoServiceStr] = value;
           try {
+            const value = Boolean(newValue);
+            this.log.debug(
+              `Setting "${tapoServiceStr}" to ${value ? "on" : "off"}...`
+            );
             await this.camera.setStatus(tapoServiceStr, value);
+            this.cachedStatus[tapoServiceStr] = value;
             toggleService
               .getCharacteristic(this.api.hap.Characteristic.On)
               .updateValue(value);
           } catch (err) {
             this.log.error("Error setting status:", err);
-            this.cachedStatus[tapoServiceStr] = !value;
-            toggleService
-              .getCharacteristic(this.api.hap.Characteristic.On)
-              .updateValue(!value);
             throw new this.api.hap.HapStatusError(
-              this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
+              this.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST
             );
           }
         });
@@ -547,15 +543,11 @@ export class CameraAccessory {
       );
 
       const eventEmitter = await this.camera.getEventEmitter();
-      eventEmitter.addListener("motion", async (motionDetected) => {
+      eventEmitter.addListener("motion", (motionDetected) => {
         this.log.debug("Motion detected", motionDetected);
 
         if (motionDetected && this.nightVisionDetector) {
-          try {
-            await this.nightVisionDetector.checkDarkness();
-          } catch {
-            // ignore
-          }
+          this.nightVisionDetector.triggerCheck();
         }
 
         this.motionSensorService?.updateCharacteristic(
@@ -688,7 +680,7 @@ export class CameraAccessory {
         }
       });
 
-      const pollInterval = this.config.nightVisionPollInterval || 5;
+      const pollInterval = this.config.nightVisionPollInterval || 10;
       this.nightVisionDetector.start(pollInterval);
     } catch (err) {
       this.log.error("Error setting up night vision sensor accessory:", err);

@@ -91,32 +91,6 @@ If you are using an audio proxy or bridge (like a local go2rtc instance or RTP b
 }
 ```
 
-### Darkness & Night Vision Sensor (Automations in the Dark)
-
-Enable `enableNightVisionSensor` to expose a sensor in Apple Home that detects when the camera switches to infrared night vision (monochrome / black & white) in dark lighting versus normal daylight / color mode.
-
-This is ideal for smart home automations, such as **turning on a light only when motion is detected in the dark**:
-
-```json
-{
-  "name": "My Camera",
-  "enableNightVisionSensor": true,
-  "nightVisionSensorType": "occupancy"
-}
-```
-
-#### Sensor Types (`nightVisionSensorType`):
-- **`"occupancy"` (Default / Recommended):** Exposes an **Occupancy Sensor** (e.g. named *Darkness*). In Apple Home, occupancy is **Detected** when it is dark / night vision is active, and **Not Detected** in daylight.
-  - *Automation Example in Apple Home app:*
-    1. Create a new automation: **"A Sensor Detects Something"** $\rightarrow$ Select **Camera Motion Sensor**.
-    2. Add condition: **If Camera Darkness Occupancy is Detected**.
-    3. Action: **Turn on Room Lights**.
-- **`"light"`:** Exposes a native **Light Sensor** (reporting `0.1 lux` in the dark / night vision and up to `500+ lux` in daylight).
-- **`"contact"`:** Exposes a **Contact Sensor** (*Open* = Dark, *Closed* = Light).
-- **`"all"`:** Exposes Occupancy, Light, and Contact sensors simultaneously.
-
-An immediate brightness analysis is also triggered whenever motion is detected on the camera to ensure sensor state is always up-to-date at the exact moment motion occurs.
-
 ## Installation
 
 You can install it via Homebridge UI or manually using:

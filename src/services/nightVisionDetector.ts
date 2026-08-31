@@ -14,6 +14,17 @@ function resolveFFmpegPath(): string {
   } catch {
     // ignore
   }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ffmpegModule = require("homebridge-camera-ffmpeg/node_modules/ffmpeg-for-homebridge");
+    if (typeof ffmpegModule === "string") return ffmpegModule;
+    if (ffmpegModule && typeof ffmpegModule.default === "string")
+      return ffmpegModule.default;
+  } catch {
+    // ignore
+  }
+
   return "ffmpeg";
 }
 
@@ -80,6 +91,8 @@ export class NightVisionDetector extends EventEmitter {
   private pollTimer: NodeJS.Timeout | undefined;
   private isChecking = false;
   private lastCheckTime = 0;
+  private hasPendingCheck = false;
+  private currentCheckPromise: Promise<NightVisionState> | undefined;
   private currentState: NightVisionState = {
     isDark: false,
     ambientLux: 100,
@@ -109,24 +122,21 @@ export class NightVisionDetector extends EventEmitter {
     return this.currentState.ambientLux;
   }
 
-  private hasPendingCheck = false;
-  private currentCheckPromise: Promise<NightVisionState> | undefined;
-
   /**
    * Start periodic background darkness polling.
    */
-  public start(intervalSeconds = 3): void {
+  public start(intervalSeconds = 10): void {
     this.stop();
-    const intervalMs = Math.max(1, intervalSeconds) * 1000;
+    const intervalMs = Math.max(2, intervalSeconds) * 1000;
 
     this.pollTimer = setInterval(() => {
       void this.checkDarkness();
     }, intervalMs);
 
-    // Initial fast check
+    // Initial check after short startup delay
     setTimeout(() => {
       void this.checkDarkness();
-    }, 200);
+    }, 1000);
   }
 
   /**
@@ -143,11 +153,17 @@ export class NightVisionDetector extends EventEmitter {
    * Trigger an immediate check (e.g. on motion detected).
    */
   public triggerCheck(): void {
+    const now = Date.now();
+    // Debounce checks within 2 seconds
+    if (now - this.lastCheckTime < 2000) {
+      this.hasPendingCheck = true;
+      return;
+    }
     void this.checkDarkness();
   }
 
   /**
-   * Captures a single 64x36 raw RGB frame via FFmpeg and analyzes color divergence.
+   * Captures a single 32x18 raw RGB frame via FFmpeg and analyzes color divergence.
    */
   public async checkDarkness(): Promise<NightVisionState> {
     if (!this.config.streamUser || !this.config.streamPassword) {
@@ -189,7 +205,7 @@ export class NightVisionDetector extends EventEmitter {
           "-vframes",
           "1",
           "-s",
-          "64x36",
+          "32x18",
           "-f",
           "rawvideo",
           "-pix_fmt",
@@ -233,7 +249,7 @@ export class NightVisionDetector extends EventEmitter {
           this.hasPendingCheck = false;
           setTimeout(() => {
             void this.checkDarkness();
-          }, 100);
+          }, 500);
         }
       }
     })();
@@ -264,9 +280,9 @@ export class NightVisionDetector extends EventEmitter {
           } catch {
             // ignore
           }
-          reject(new Error("FFmpeg frame capture timed out after 5000ms"));
+          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
         }
-      }, 5000);
+      }, 4000);
 
       ffmpeg.stdout?.on("data", (chunk: Buffer) => {
         chunks.push(chunk);

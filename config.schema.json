@@ -209,12 +209,12 @@
             "description": "Enables the Floodlight lightbulb accessory (opt-in because not all cameras support it)"
           },
           "enableNightVisionSensor": {
-            "title": "Enable Darkness / Night Vision Sensor",
+            "title": "Enable Night Vision / Darkness Sensor",
             "type": "boolean",
-            "description": "Exposes a sensor to Apple Home that detects when the camera is in dark / infrared night vision mode (black & white) versus normal daylight mode. Enables automations such as turning on lights only when motion is detected in the dark."
+            "description": "Exposes an automation sensor that detects when the camera enters night vision (darkness) or day mode"
           },
           "nightVisionSensorType": {
-            "title": "Darkness Sensor Type",
+            "title": "Night Vision Sensor Type",
             "type": "string",
             "default": "occupancy",
             "enum": [
@@ -223,40 +223,25 @@
               "contact",
               "all"
             ],
-            "description": "Type of HomeKit sensor to expose. Occupancy Sensor is recommended because it can be used directly as a condition in Apple Home automations ('When Motion Detected, IF Darkness is Occupied -> Turn on Light').",
-            "condition": {
-              "functionBody": "return model.cameras[arrayIndices[0]].enableNightVisionSensor === true;"
-            }
+            "description": "The HomeKit accessory type to expose for night vision / darkness detection. Occupancy: detected when dark; Light: lux level; Contact: open when dark; All: all sensors."
           },
           "nightVisionSensorName": {
-            "title": "Darkness Sensor Name",
+            "title": "Night Vision Sensor Name",
             "type": "string",
-            "placeholder": "Darkness",
-            "description": "Custom display name for the Darkness / Night Vision sensor accessory",
-            "condition": {
-              "functionBody": "return model.cameras[arrayIndices[0]].enableNightVisionSensor === true;"
-            }
+            "description": "Custom name for the darkness sensor accessory (default: 'Darkness')",
+            "placeholder": "Darkness"
           },
           "nightVisionPollInterval": {
-            "title": "Darkness Check Interval (seconds)",
+            "title": "Night Vision Poll Interval (seconds)",
             "type": "integer",
-            "placeholder": 5,
-            "default": 5,
-            "minimum": 1,
-            "description": "Frequency in seconds to sample the camera's day/night state in the background (default: 5s). Note: An immediate check is also triggered automatically whenever motion is detected.",
-            "condition": {
-              "functionBody": "return model.cameras[arrayIndices[0]].enableNightVisionSensor === true;"
-            }
+            "default": 10,
+            "description": "How frequently in seconds to analyze darkness (default: 10 seconds). Also updates immediately on motion."
           },
           "nightVisionThreshold": {
-            "title": "Color Saturation Threshold",
+            "title": "Night Vision Color Threshold",
             "type": "number",
-            "placeholder": 6.0,
             "default": 6.0,
-            "description": "Sensitivity threshold for black-and-white night vision detection (default: 6.0).",
-            "condition": {
-              "functionBody": "return model.cameras[arrayIndices[0]].enableNightVisionSensor === true;"
-            }
+            "description": "Sensitivity threshold for color divergence analysis (default: 6.0; lower is stricter)."
           },
           "disableMotionSensorAccessory": {
             "title": "Disable Motion sensor",
