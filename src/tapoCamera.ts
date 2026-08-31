@@ -124,11 +124,13 @@ export class TAPOCamera extends OnvifCamera {
     }
   }
 
-  private fetch(url: string, data: RequestInit) {
+  private fetch(url: string, data: RequestInit, timeoutMs = 4000) {
+    const signal = data.signal || AbortSignal.timeout(timeoutMs);
     return fetch(url, {
       headers: this.getHeaders(),
       // @ts-expect-error Dispatcher type not there
       dispatcher: this.fetchAgent,
+      signal,
       ...data,
     });
   }

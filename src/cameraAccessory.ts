@@ -204,20 +204,24 @@ export class CameraAccessory {
           }
         })
         .onSet(async (newValue) => {
+          const value = Boolean(newValue);
+          this.log.debug(
+            `Setting "${tapoServiceStr}" to ${value ? "on" : "off"}...`
+          );
+          this.cachedStatus[tapoServiceStr] = value;
           try {
-            const value = Boolean(newValue);
-            this.log.debug(
-              `Setting "${tapoServiceStr}" to ${value ? "on" : "off"}...`
-            );
             await this.camera.setStatus(tapoServiceStr, value);
-            this.cachedStatus[tapoServiceStr] = value;
             toggleService
               .getCharacteristic(this.api.hap.Characteristic.On)
               .updateValue(value);
           } catch (err) {
             this.log.error("Error setting status:", err);
+            this.cachedStatus[tapoServiceStr] = !value;
+            toggleService
+              .getCharacteristic(this.api.hap.Characteristic.On)
+              .updateValue(!value);
             throw new this.api.hap.HapStatusError(
-              this.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST
+              this.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE
             );
           }
         });
