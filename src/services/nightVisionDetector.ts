@@ -79,6 +79,7 @@ export class NightVisionDetector extends EventEmitter {
     private readonly log: Logging,
     private readonly config: CameraConfig,
     private readonly camera: TAPOCamera,
+    private readonly isStreamActive?: () => boolean,
     videoProcessor?: string
   ) {
     super();
@@ -152,6 +153,13 @@ export class NightVisionDetector extends EventEmitter {
       return this.currentState;
     }
 
+    if (this.isStreamActive && this.isStreamActive()) {
+      this.log.debug(
+        "NightVisionDetector: Skipping darkness check because a live stream or recording is currently active."
+      );
+      return this.currentState;
+    }
+
     this.isChecking = true;
     this.lastCheckTime = Date.now();
 
@@ -165,6 +173,14 @@ export class NightVisionDetector extends EventEmitter {
         "error",
         "-rtsp_transport",
         rtspTransport,
+        "-flags",
+        "low_delay",
+        "-fflags",
+        "+nobuffer+discardcorrupt",
+        "-probesize",
+        "32768",
+        "-analyzeduration",
+        "0",
         "-i",
         streamUrl,
         "-vframes",
@@ -230,9 +246,9 @@ export class NightVisionDetector extends EventEmitter {
           } catch {
             // ignore
           }
-          reject(new Error("FFmpeg frame capture timed out after 8000ms"));
+          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
         }
-      }, 8000);
+      }, 4000);
 
       ffmpeg.stdout.on("data", (chunk: Buffer) => {
         chunks.push(chunk);

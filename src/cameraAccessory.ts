@@ -87,12 +87,29 @@ export class CameraAccessory {
   private isOffline = false;
 
   private motionSensorService: Service | undefined;
+  private streamingDelegate: StreamingDelegate | undefined;
+  private recordingDelegate: RecordingDelegate | undefined;
   private nightVisionDetector: NightVisionDetector | undefined;
   private nightVisionOccupancyService: Service | undefined;
   private nightVisionLightService: Service | undefined;
   private nightVisionContactService: Service | undefined;
 
   private readonly randomSeed = Math.random();
+
+  public isLiveStreamingActive(): boolean {
+    return Boolean(
+      // @ts-expect-error ongoingSessions is internal to StreamingDelegate
+      this.streamingDelegate?.ongoingSessions?.size > 0
+    );
+  }
+
+  public isRecordingActive(): boolean {
+    return Boolean(this.recordingDelegate?.isRecording);
+  }
+
+  public isStreamActive(): boolean {
+    return this.isLiveStreamingActive() || this.isRecordingActive();
+  }
 
   constructor(
     private readonly platform: CameraPlatform,
@@ -261,8 +278,8 @@ export class CameraAccessory {
       maxBitrate: this.config.videoMaxBitrate ?? this.config.videoMaxBirate,
       packetSize: this.config.videoPacketSize,
       forceMax: this.config.videoForceMax,
-      // async resampling prevents backward audio DTS from pcm_alaw packet jitter.
-      mapaudio: "0:a:0 -af aresample=async=1000",
+      // async resampling prevents backward audio DTS from pcm_alaw packet jitter without dropping video frames.
+      mapaudio: "0:a:0 -af aresample=async=16000",
       ...(isTwoWayAudio && returnAudioTarget
         ? {
             returnAudioTarget,
@@ -273,7 +290,7 @@ export class CameraAccessory {
         : {}),
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
+      source: `-rtsp_transport ${rtspTransport} -fflags +genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
@@ -315,6 +332,7 @@ export class CameraAccessory {
         this.api,
         this.api.hap
       );
+      this.streamingDelegate = delegate;
 
       let isHsvSupported = true;
       if (
@@ -373,6 +391,7 @@ export class CameraAccessory {
             return true;
           }
         );
+        this.recordingDelegate = recordingDelegate;
 
         const recordingCodecs = [
           {
@@ -544,7 +563,11 @@ export class CameraAccessory {
           motionDetected
         );
 
-        if (motionDetected && this.nightVisionDetector) {
+        if (
+          motionDetected &&
+          this.nightVisionDetector &&
+          !this.isStreamActive()
+        ) {
           this.nightVisionDetector.triggerCheck();
         }
       });
@@ -565,7 +588,8 @@ export class CameraAccessory {
       this.nightVisionDetector = new NightVisionDetector(
         this.log,
         this.config,
-        this.camera
+        this.camera,
+        () => this.isStreamActive()
       );
 
       const sensorType = this.config.nightVisionSensorType || "occupancy";

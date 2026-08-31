@@ -51,6 +51,10 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       (typeof ffmpegPath === "string" ? ffmpegPath : "ffmpeg");
   }
 
+  public get isRecording(): boolean {
+    return this.currentProcess !== undefined;
+  }
+
   updateRecordingActive(active: boolean): void {
     this.log.debug(`HSV Recording active state updated: ${active}`);
     this.active = active;
