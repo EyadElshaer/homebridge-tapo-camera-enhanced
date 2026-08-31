@@ -28,7 +28,7 @@ export class CameraPlatform implements IndependentPlatformPlugin {
   }
 
   private discoverDevices() {
-    if (!this.config.cameras || this.config.cameras.length === 0) {
+    if (!this.config || !Array.isArray(this.config.cameras) || this.config.cameras.length === 0) {
       this.log.warn(
         "No cameras configured. Please add your Tapo camera in Homebridge settings."
       );
@@ -36,7 +36,9 @@ export class CameraPlatform implements IndependentPlatformPlugin {
     }
 
     this.config.cameras.forEach((cameraConfig) => {
-      this.setupCamera(cameraConfig);
+      if (cameraConfig && typeof cameraConfig === "object") {
+        this.setupCamera(cameraConfig);
+      }
     });
   }
 

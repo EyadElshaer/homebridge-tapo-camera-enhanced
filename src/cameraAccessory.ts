@@ -98,11 +98,17 @@ export class CameraAccessory {
     private readonly platform: CameraPlatform,
     private readonly config: CameraConfig
   ) {
-    // @ts-expect-error - private property
-    this.log = {
-      ...this.platform.log,
-      prefix: this.platform.log.prefix + `/${this.config.name}`,
-    };
+    const prefix = `${this.platform.log?.prefix || "tapo-camera"}/${this.config?.name || "Camera"}`;
+    this.log = Object.assign(
+      (message: string, ...parameters: unknown[]) => this.platform.log(message, ...parameters),
+      {
+        prefix,
+        info: (message: string, ...parameters: unknown[]) => this.platform.log.info(message, ...parameters),
+        warn: (message: string, ...parameters: unknown[]) => this.platform.log.warn(message, ...parameters),
+        error: (message: string, ...parameters: unknown[]) => this.platform.log.error(message, ...parameters),
+        debug: (message: string, ...parameters: unknown[]) => this.platform.log.debug(message, ...parameters),
+      }
+    ) as unknown as Logging;
 
     this.api = this.platform.api;
     this.accessory = new this.api.platformAccessory(
