@@ -79,15 +79,15 @@ Enable `twoWayAudio` for a camera to turn on the microphone/talk button in the A
 > [!NOTE]
 > Make sure **"Third-Party Compatibility"** is enabled in the Tapo App under *Me > Tapo Lab > Third-Party Compatibility*.
 
-#### Custom Return Audio Target
+#### Return Audio Target
 
-If your camera model or network configuration requires custom FFmpeg return arguments, you can configure `returnAudioTarget`:
+If you are using an audio proxy or bridge (like a local go2rtc instance or RTP backchannel endpoint), you can route the return audio using `returnAudioTarget`:
 
 ```json
 {
   "name": "My Camera",
   "twoWayAudio": true,
-  "returnAudioTarget": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp rtsp://user:pass@192.168.0.XXX:554/stream1"
+  "returnAudioTarget": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtp rtp://127.0.0.1:5004"
 }
 ```
 

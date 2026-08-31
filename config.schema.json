@@ -75,10 +75,10 @@
             }
           },
           "returnAudioTarget": {
-            "title": "Custom Return Audio Target",
+            "title": "Return Audio Target (FFmpeg output)",
             "type": "string",
-            "description": "Optional custom FFmpeg output arguments for sending return audio to the camera. If left empty and Two-Way Audio is enabled, standard RTSP backchannel arguments are automatically used (-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp <streamUrl>).",
-            "placeholder": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp rtsp://...",
+            "description": "Optional custom FFmpeg output target for routing talkback return audio from the Apple Home app (e.g. to a local go2rtc instance, RTP stream, or audio bridge endpoint). Example: '-acodec pcm_alaw -ar 8000 -ac 1 -f rtp rtp://127.0.0.1:5004'.",
+            "placeholder": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtp rtp://127.0.0.1:5004",
             "condition": {
               "functionBody": "return model.cameras[arrayIndices[0]].twoWayAudio === true && model.cameras[arrayIndices[0]].disableStreaming !== true;"
             }

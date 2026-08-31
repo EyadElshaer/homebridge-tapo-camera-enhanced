@@ -229,13 +229,9 @@ export class CameraAccessory {
       this.config.videoConfig?.returnAudioTarget
     );
 
-    let returnAudioTarget =
+    const returnAudioTarget =
       this.config.returnAudioTarget ||
       this.config.videoConfig?.returnAudioTarget;
-
-    if (isTwoWayAudio && !returnAudioTarget) {
-      returnAudioTarget = `-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp ${streamUrl}`;
-    }
 
     const vcodec = this.config.videoCodec ?? "copy";
     const config: VideoConfig = {
@@ -285,7 +281,11 @@ export class CameraAccessory {
       }
 
       const videoConfig = this.getVideoConfig();
-      const isTwoWayAudio = Boolean(videoConfig.returnAudioTarget);
+      const isTwoWayAudio = Boolean(
+        this.config.twoWayAudio ||
+        this.config.returnAudioTarget ||
+        videoConfig.returnAudioTarget
+      );
 
       const delegate = new StreamingDelegate(
         new Logger(this.log),
