@@ -65,6 +65,33 @@
             "type": "boolean",
             "description": "Disables the video feed accessory"
           },
+          "twoWayAudio": {
+            "title": "Two-Way Audio (Talkback)",
+            "type": "boolean",
+            "default": false,
+            "description": "Enables two-way audio (talkback) so you can speak to the camera directly from the Apple Home app live stream without using the Tapo app. Note: Ensure 'Third-Party Compatibility' is enabled in the Tapo app (Me > Tapo Lab > Third-Party Compatibility).",
+            "condition": {
+              "functionBody": "return model.cameras[arrayIndices[0]].disableStreaming !== true;"
+            }
+          },
+          "returnAudioTarget": {
+            "title": "Custom Return Audio Target",
+            "type": "string",
+            "description": "Optional custom FFmpeg output arguments for sending return audio to the camera. If left empty and Two-Way Audio is enabled, standard RTSP backchannel arguments are automatically used (-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp <streamUrl>).",
+            "placeholder": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp rtsp://...",
+            "condition": {
+              "functionBody": "return model.cameras[arrayIndices[0]].twoWayAudio === true && model.cameras[arrayIndices[0]].disableStreaming !== true;"
+            }
+          },
+          "debugReturn": {
+            "title": "Debug Two-Way Audio",
+            "type": "boolean",
+            "default": false,
+            "description": "Enables verbose logging for the two-way return audio FFmpeg process in Homebridge logs.",
+            "condition": {
+              "functionBody": "return model.cameras[arrayIndices[0]].twoWayAudio === true && model.cameras[arrayIndices[0]].disableStreaming !== true;"
+            }
+          },
           "hsv": {
             "title": "HomeKit Secure Video (HSV)",
             "type": "boolean",

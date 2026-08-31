@@ -28,6 +28,9 @@ export type CameraConfig = {
   hsv?: boolean;
   prebufferLength?: number;
   hksvConfig?: HKSVConfig;
+  twoWayAudio?: boolean;
+  returnAudioTarget?: string;
+  debugReturn?: boolean;
   disableEyesToggleAccessory?: boolean;
   disableAlarmToggleAccessory?: boolean;
   disableNotificationsToggleAccessory?: boolean;
@@ -215,6 +218,20 @@ export class CameraAccessory {
       Boolean(this.config.lowQuality)
     );
 
+    const isTwoWayAudio = Boolean(
+      this.config.twoWayAudio ||
+      this.config.returnAudioTarget ||
+      this.config.videoConfig?.returnAudioTarget
+    );
+
+    let returnAudioTarget =
+      this.config.returnAudioTarget ||
+      this.config.videoConfig?.returnAudioTarget;
+
+    if (isTwoWayAudio && !returnAudioTarget) {
+      returnAudioTarget = `-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp ${streamUrl}`;
+    }
+
     const vcodec = this.config.videoCodec ?? "copy";
     const config: VideoConfig = {
       audio: true, // Set audio as true as most of TAPO cameras have audio
@@ -231,10 +248,22 @@ export class CameraAccessory {
       forceMax: this.config.videoForceMax,
       // async resampling prevents backward audio DTS from pcm_alaw packet jitter.
       mapaudio: "0:a:0 -af aresample=async=16000",
+      ...(isTwoWayAudio && returnAudioTarget
+        ? {
+            returnAudioTarget,
+            debugReturn: Boolean(
+              this.config.debugReturn ?? this.config.videoConfig?.debugReturn
+            ),
+          }
+        : {}),
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
       source: `-rtsp_transport ${this.config.rtspTransport ?? "udp"} -i ${streamUrl}`,
     };
+
+    if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
+      config.returnAudioTarget = returnAudioTarget;
+    }
 
     this.log.debug("Video config", config);
 
@@ -250,6 +279,9 @@ export class CameraAccessory {
         return;
       }
 
+      const videoConfig = this.getVideoConfig();
+      const isTwoWayAudio = Boolean(videoConfig.returnAudioTarget);
+
       const delegate = new StreamingDelegate(
         new Logger(this.log),
         {
@@ -259,7 +291,7 @@ export class CameraAccessory {
           serialNumber: basicInfo.mac,
           firmwareRevision: basicInfo.sw_version,
           unbridge: true,
-          videoConfig: this.getVideoConfig(),
+          videoConfig: videoConfig,
         },
         this.api,
         this.api.hap
@@ -356,7 +388,7 @@ export class CameraAccessory {
               },
             },
             audio: {
-              twoWayAudio: !!this.config.videoConfig?.returnAudioTarget,
+              twoWayAudio: isTwoWayAudio,
               codecs: [
                 {
                   type: this.api.hap.AudioStreamingCodecType.AAC_ELD,

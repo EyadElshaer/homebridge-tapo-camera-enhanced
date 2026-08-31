@@ -65,6 +65,32 @@ When this is enabled, the plugin switches the camera-ffmpeg stream into recordin
 
 HomeKit Secure Video requires a Home hub and an iCloud plan that supports HSV, and Homebridge 1.4.0-beta.4 or newer.
 
+### Two-Way Audio (Talkback)
+
+Enable `twoWayAudio` for a camera to turn on the microphone/talk button in the Apple Home app live view so you can talk to the camera directly from Apple Home without using the Tapo app.
+
+```json
+{
+  "name": "My Camera",
+  "twoWayAudio": true
+}
+```
+
+> [!NOTE]
+> Make sure **"Third-Party Compatibility"** is enabled in the Tapo App under *Me > Tapo Lab > Third-Party Compatibility*.
+
+#### Custom Return Audio Target
+
+If your camera model or network configuration requires custom FFmpeg return arguments, you can configure `returnAudioTarget`:
+
+```json
+{
+  "name": "My Camera",
+  "twoWayAudio": true,
+  "returnAudioTarget": "-acodec pcm_alaw -ar 8000 -ac 1 -f rtsp rtsp://user:pass@192.168.0.XXX:554/stream1"
+}
+```
+
 ## Installation
 
 You can install it via Homebridge UI or manually using:
