@@ -91,6 +91,8 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       "-hide_banner",
       "-loglevel",
       this.cameraConfig.debug ? "verbose" : "error",
+      "-fflags",
+      "+genpts+discardcorrupt",
       "-rtsp_transport",
       rtspTransport,
       "-i",
@@ -135,6 +137,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       this.configuration.videoCodec.parameters.bitRate;
     const iFrameInterval =
       this.configuration.videoCodec.parameters.iFrameInterval || 4000;
+    const gop = Math.max(1, Math.round((iFrameInterval / 1000) * fps));
 
     if (vcodec === "copy") {
       videoArguments.push("-vcodec", "copy");
@@ -156,6 +159,10 @@ export class RecordingDelegate implements CameraRecordingDelegate {
         `scale=w=${width}:h=${height}:force_original_aspect_ratio=1,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
         "-r",
         `${fps}`,
+        "-g",
+        `${gop}`,
+        "-keyint_min",
+        `${gop}`,
         "-force_key_frames",
         `expr:gte(t,n_forced*${iFrameInterval / 1000})`
       );
@@ -295,13 +302,11 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       for await (const box of parseFragmentedMP4(cp.stdout)) {
         pending.push(box.header, box.data);
 
-        const motionDetected = this.getMotionDetected();
-
         if (box.type === "moov" || box.type === "mdat") {
           const fragment = Buffer.concat(pending);
           pending = [];
 
-          const isLast = !motionDetected || this.isClosing;
+          const isLast = this.isClosing;
 
           yield {
             data: fragment,
@@ -310,7 +315,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
 
           if (isLast) {
             this.log.debug(
-              "Ending HSV recording session because motion has stopped or stream is closing."
+              "Ending HSV recording session because stream is closing."
             );
             break;
           }
