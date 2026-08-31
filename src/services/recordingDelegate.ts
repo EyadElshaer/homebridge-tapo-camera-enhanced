@@ -279,20 +279,38 @@ export class RecordingDelegate implements CameraRecordingDelegate {
     });
     this.currentProcess = cp;
 
-    const stderrInterface = readline.createInterface({
-      input: cp.stderr,
-      terminal: false,
-    });
-
-    stderrInterface.on("line", (line: string) => {
-      if (this.cameraConfig.debug || /\[(panic|fatal|error)\]/.test(line)) {
-        this.log.debug(`[HSV FFmpeg] ${line}`);
-      }
-    });
-
     cp.on("error", (error: Error) => {
-      this.log.error(`HSV FFmpeg process failed to spawn: ${error.message}`);
+      this.log.error(`HSV FFmpeg process error: ${error.message}`);
     });
+
+    cp.stdout?.on("error", (err: Error) => {
+      this.log.debug(`[HSV FFmpeg stdout error] ${err.message}`);
+    });
+
+    cp.stderr?.on("error", (err: Error) => {
+      this.log.debug(`[HSV FFmpeg stderr error] ${err.message}`);
+    });
+
+    cp.stdin?.on("error", (err: Error) => {
+      this.log.debug(`[HSV FFmpeg stdin error] ${err.message}`);
+    });
+
+    if (cp.stderr) {
+      const stderrInterface = readline.createInterface({
+        input: cp.stderr,
+        terminal: false,
+      });
+
+      stderrInterface.on("line", (line: string) => {
+        if (this.cameraConfig.debug || /\[(panic|fatal|error)\]/.test(line)) {
+          this.log.debug(`[HSV FFmpeg] ${line}`);
+        }
+      });
+
+      stderrInterface.on("error", () => {
+        // ignore
+      });
+    }
 
     cp.on("exit", (code: number | null, signal: NodeJS.Signals | null) => {
       this.log.debug(
@@ -334,7 +352,16 @@ export class RecordingDelegate implements CameraRecordingDelegate {
           const fragment = Buffer.concat(pending);
           pending = [];
 
-          const motion = this.getMotionDetected ? this.getMotionDetected() : false;
+          let motion = false;
+          try {
+            motion =
+              typeof this.getMotionDetected === "function"
+                ? Boolean(this.getMotionDetected())
+                : false;
+          } catch {
+            motion = false;
+          }
+
           if (motion) {
             postMotionRemaining = POST_MOTION_FRAGMENTS;
           } else {
@@ -372,17 +399,12 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       const proc = this.currentProcess;
       this.currentProcess = undefined;
       try {
-        proc.kill("SIGTERM");
+        if (!proc.killed) {
+          proc.kill();
+        }
       } catch {
         // ignore
       }
-      setTimeout(() => {
-        try {
-          proc.kill("SIGKILL");
-        } catch {
-          // ignore
-        }
-      }, 2000);
     }
   }
 
@@ -390,21 +412,29 @@ export class RecordingDelegate implements CameraRecordingDelegate {
     streamId: number,
     reason?: HDSProtocolSpecificErrorReason
   ): void {
-    this.log.info(
-      `Closing HSV recording stream (streamId: ${streamId}, reason: ${reason ?? "NORMAL"})`
-    );
-    this.isClosing = true;
+    try {
+      this.log.info(
+        `Closing HSV recording stream (streamId: ${streamId}, reason: ${reason ?? "NORMAL"})`
+      );
+      this.isClosing = true;
 
-    if (this.forceCloseTimer) {
-      clearTimeout(this.forceCloseTimer);
-      this.forceCloseTimer = undefined;
+      if (this.forceCloseTimer) {
+        clearTimeout(this.forceCloseTimer);
+        this.forceCloseTimer = undefined;
+      }
+
+      this.closeProcess();
+    } catch (err) {
+      this.log.debug(`Error in closeRecordingStream: ${err}`);
     }
-
-    this.closeProcess();
   }
 
   acknowledgeStream(streamId: number): void {
-    this.log.debug(`HSV recording stream acknowledged (streamId: ${streamId})`);
-    this.closeRecordingStream(streamId);
+    try {
+      this.log.debug(`HSV recording stream acknowledged (streamId: ${streamId})`);
+      this.closeRecordingStream(streamId);
+    } catch (err) {
+      this.log.debug(`Error in acknowledgeStream: ${err}`);
+    }
   }
 }
