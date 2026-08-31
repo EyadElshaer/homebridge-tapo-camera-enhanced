@@ -289,8 +289,8 @@ export class CameraAccessory {
           }
         : {}),
       ...(this.config.videoConfig || {}),
-      // Real-time zero latency RTSP stream: nobuffer + flush_packets + low_delay
-      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+flush_packets+genpts+discardcorrupt -flags low_delay -analyzeduration 100000 -probesize 100000 -i ${streamUrl}`,
+      // We add this at the end as the user must not be able to override it
+      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
