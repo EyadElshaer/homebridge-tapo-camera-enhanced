@@ -13,6 +13,10 @@ import { CameraPlatform } from "./cameraPlatform";
 import { VideoConfig } from "homebridge-camera-ffmpeg/dist/configTypes";
 import { TAPOBasicInfo } from "./types/tapo";
 import { RecordingDelegate, HKSVConfig } from "./services/recordingDelegate";
+import {
+  NightVisionDetector,
+  NightVisionState,
+} from "./services/nightVisionDetector";
 
 export type CameraConfig = {
   name: string;
@@ -37,6 +41,11 @@ export type CameraConfig = {
   disableMotionDetectionToggleAccessory?: boolean;
   disableLEDToggleAccessory?: boolean;
   enableFloodLightAccessory?: boolean;
+  enableNightVisionSensor?: boolean;
+  nightVisionSensorType?: "occupancy" | "light" | "contact" | "all";
+  nightVisionSensorName?: string;
+  nightVisionPollInterval?: number;
+  nightVisionThreshold?: number;
 
   disableMotionSensorAccessory?: boolean;
   lowQuality?: boolean;
@@ -78,6 +87,10 @@ export class CameraAccessory {
   private isOffline = false;
 
   private motionSensorService: Service | undefined;
+  private nightVisionDetector: NightVisionDetector | undefined;
+  private nightVisionOccupancyService: Service | undefined;
+  private nightVisionLightService: Service | undefined;
+  private nightVisionContactService: Service | undefined;
 
   private readonly randomSeed = Math.random();
 
@@ -530,9 +543,140 @@ export class CameraAccessory {
           this.api.hap.Characteristic.MotionDetected,
           motionDetected
         );
+
+        if (motionDetected && this.nightVisionDetector) {
+          this.nightVisionDetector.triggerCheck();
+        }
       });
     } catch (err) {
       this.log.error("Error setting up motion sensor accessory:", err);
+    }
+  }
+
+  private setupNightVisionSensorAccessory() {
+    try {
+      if (!this.hasStreamCredentials()) {
+        this.log.warn(
+          "Night Vision / Darkness sensor requires streamUser and streamPassword. Skipping setup."
+        );
+        return;
+      }
+
+      this.nightVisionDetector = new NightVisionDetector(
+        this.log,
+        this.config,
+        this.camera
+      );
+
+      const sensorType = this.config.nightVisionSensorType || "occupancy";
+      const baseName = this.config.nightVisionSensorName || "Darkness";
+
+      if (sensorType === "occupancy" || sensorType === "all") {
+        this.nightVisionOccupancyService = this.accessory.addService(
+          this.platform.api.hap.Service.OccupancySensor,
+          baseName,
+          "nightVisionOccupancy"
+        );
+        this.nightVisionOccupancyService.addOptionalCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName
+        );
+        this.nightVisionOccupancyService.setCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName,
+          baseName
+        );
+        this.nightVisionOccupancyService
+          .getCharacteristic(this.api.hap.Characteristic.OccupancyDetected)
+          .onGet(() => {
+            const isDark = this.nightVisionDetector?.isDark ?? false;
+            return isDark
+              ? this.api.hap.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+              : this.api.hap.Characteristic.OccupancyDetected.OCCUPANCY_NOT_DETECTED;
+          });
+      }
+
+      if (sensorType === "light" || sensorType === "all") {
+        const lightName =
+          sensorType === "all" ? `${baseName} Light Level` : baseName;
+        this.nightVisionLightService = this.accessory.addService(
+          this.platform.api.hap.Service.LightSensor,
+          lightName,
+          "nightVisionLight"
+        );
+        this.nightVisionLightService.addOptionalCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName
+        );
+        this.nightVisionLightService.setCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName,
+          lightName
+        );
+        this.nightVisionLightService
+          .getCharacteristic(
+            this.api.hap.Characteristic.CurrentAmbientLightLevel
+          )
+          .onGet(() => {
+            return this.nightVisionDetector?.ambientLux ?? 100;
+          });
+      }
+
+      if (sensorType === "contact" || sensorType === "all") {
+        const contactName =
+          sensorType === "all" ? `${baseName} Sensor` : baseName;
+        this.nightVisionContactService = this.accessory.addService(
+          this.platform.api.hap.Service.ContactSensor,
+          contactName,
+          "nightVisionContact"
+        );
+        this.nightVisionContactService.addOptionalCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName
+        );
+        this.nightVisionContactService.setCharacteristic(
+          this.api.hap.Characteristic.ConfiguredName,
+          contactName
+        );
+        this.nightVisionContactService
+          .getCharacteristic(this.api.hap.Characteristic.ContactSensorState)
+          .onGet(() => {
+            const isDark = this.nightVisionDetector?.isDark ?? false;
+            return isDark
+              ? this.api.hap.Characteristic.ContactSensorState
+                  .CONTACT_NOT_DETECTED
+              : this.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED;
+          });
+      }
+
+      this.nightVisionDetector.on("update", (state: NightVisionState) => {
+        if (this.nightVisionOccupancyService) {
+          this.nightVisionOccupancyService.updateCharacteristic(
+            this.api.hap.Characteristic.OccupancyDetected,
+            state.isDark
+              ? this.api.hap.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
+              : this.api.hap.Characteristic.OccupancyDetected
+                  .OCCUPANCY_NOT_DETECTED
+          );
+        }
+
+        if (this.nightVisionLightService) {
+          this.nightVisionLightService.updateCharacteristic(
+            this.api.hap.Characteristic.CurrentAmbientLightLevel,
+            state.ambientLux
+          );
+        }
+
+        if (this.nightVisionContactService) {
+          this.nightVisionContactService.updateCharacteristic(
+            this.api.hap.Characteristic.ContactSensorState,
+            state.isDark
+              ? this.api.hap.Characteristic.ContactSensorState
+                  .CONTACT_NOT_DETECTED
+              : this.api.hap.Characteristic.ContactSensorState.CONTACT_DETECTED
+          );
+        }
+      });
+
+      const pollInterval = this.config.nightVisionPollInterval || 30;
+      this.nightVisionDetector.start(pollInterval);
+    } catch (err) {
+      this.log.error("Error setting up night vision sensor accessory:", err);
     }
   }
 
@@ -676,6 +820,10 @@ export class CameraAccessory {
         "floodLight",
         this.api.hap.Service.Lightbulb
       );
+    }
+
+    if (this.config.enableNightVisionSensor) {
+      this.setupNightVisionSensorAccessory();
     }
 
     // Publish as external accessory
