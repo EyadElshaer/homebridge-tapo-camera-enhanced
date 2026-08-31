@@ -2,8 +2,6 @@
 
 Make your TP-Link TAPO security camera compatible with Homekit through Homebridge / HOOBS.
 
-[![verified-by-homebridge](https://badgen.net/badge/homebridge/verified/purple)](https://github.com/homebridge/homebridge/wiki/Verified-Plugins)
-
 ![photo_2021-11-23 11 57 48](https://user-images.githubusercontent.com/839700/143013358-9f6eed44-3aad-40b0-b1e5-ddc2c5bb24e4.png)
 
 The plugin exposes the camera RTSP video feed, and toggle accessories to configure your automations.
@@ -31,6 +29,14 @@ If your video feed is not working, try to check if any of the parameters at the 
 - _"LED"_ switches on/off the LED.
 
 - _"Floodlight"_ switches on/off the floodlight (only for supported cameras, opt-in via config).
+
+- _"Darkness / Night Vision Sensor"_  exposes a sensor in Apple Home that detects when the camera switches to infrared night vision (monochrome / black & white) in dark lighting versus normal daylight / color mode.
+
+- _"Microphone"_  exposes a microphone in Apple Home that detects the sound level of the camera.
+
+- _"Speaker"_  exposes a speaker in Apple Home that allows you to play sound through the camera.
+
+- _"Homekit Secure Video"_  exposes a camera in Apple Home that supports Homekit Secure Video.
 
 An example Home automation could be:
 
@@ -122,7 +128,7 @@ An immediate brightness analysis is also triggered whenever motion is detected o
 You can install it via Homebridge UI or manually using:
 
 ```sh
-npm -g install homebridge-tapo-camera
+npm -g install homebridge-tapo-camera-enhanced
 ```
 
 ### Configuration
