@@ -278,8 +278,8 @@ export class CameraAccessory {
       maxBitrate: this.config.videoMaxBitrate ?? this.config.videoMaxBirate,
       packetSize: this.config.videoPacketSize,
       forceMax: this.config.videoForceMax,
-      // async resampling prevents backward audio DTS from pcm_alaw packet jitter without dropping video frames.
-      mapaudio: "0:a:0 -af aresample=async=16000",
+      // async resampling with 1000 max drift prevents audio/video delay accumulation while smoothing pcm_alaw timestamps
+      mapaudio: "0:a:0 -af aresample=async=1000",
       ...(isTwoWayAudio && returnAudioTarget
         ? {
             returnAudioTarget,
@@ -289,8 +289,8 @@ export class CameraAccessory {
           }
         : {}),
       ...(this.config.videoConfig || {}),
-      // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport ${rtspTransport} -fflags +genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
+      // Real-time zero latency RTSP stream: nobuffer + flush_packets + low_delay
+      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+flush_packets+genpts+discardcorrupt -flags low_delay -analyzeduration 100000 -probesize 100000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
