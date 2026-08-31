@@ -18,11 +18,24 @@ export class CameraPlatform implements IndependentPlatformPlugin {
     public readonly config: CameraPlatformConfig,
     public readonly api: API
   ) {
-    this.discoverDevices();
+    if (this.api && typeof this.api.on === "function") {
+      this.api.on("didFinishLaunching", () => {
+        this.discoverDevices();
+      });
+    } else {
+      this.discoverDevices();
+    }
   }
 
   private discoverDevices() {
-    this.config.cameras?.forEach((cameraConfig) => {
+    if (!this.config.cameras || this.config.cameras.length === 0) {
+      this.log.warn(
+        "No cameras configured. Please add your Tapo camera in Homebridge settings."
+      );
+      return;
+    }
+
+    this.config.cameras.forEach((cameraConfig) => {
       this.setupCamera(cameraConfig);
     });
   }

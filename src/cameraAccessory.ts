@@ -118,15 +118,20 @@ export class CameraAccessory {
       .setCharacteristic(this.api.hap.Characteristic.Manufacturer, "TAPO")
       .setCharacteristic(
         this.api.hap.Characteristic.Model,
-        basicInfo.device_info
+        basicInfo.device_info || basicInfo.device_model || "TAPO Camera"
       )
       .setCharacteristic(
         this.api.hap.Characteristic.SerialNumber,
-        basicInfo.mac
+        basicInfo.mac ||
+          this.api.hap.uuid
+            .generate(this.config.name)
+            .replace(/-/g, "")
+            .slice(0, 12)
+            .toUpperCase()
       )
       .setCharacteristic(
         this.api.hap.Characteristic.FirmwareRevision,
-        basicInfo.sw_version
+        basicInfo.sw_version || "1.0.0"
       );
   }
 
@@ -559,8 +564,28 @@ export class CameraAccessory {
   }
 
   async setup() {
-    const basicInfo = await this.camera.getBasicInfo();
-    this.log.debug("Basic info", basicInfo);
+    let basicInfo: TAPOBasicInfo;
+    try {
+      basicInfo = await this.camera.getBasicInfo();
+      this.log.debug("Basic info", basicInfo);
+    } catch (err) {
+      this.log.warn(
+        `Could not retrieve initial basic info for camera "${this.config.name}" (${err instanceof Error ? err.message : err}). Using fallback metadata so the camera is immediately published to HomeKit.`
+      );
+      basicInfo = {
+        device_type: "SMART.IPCAMERA",
+        device_model: "TAPO",
+        device_info: "TAPO Camera",
+        device_name: this.config.name,
+        mac: this.api.hap.uuid
+          .generate(this.config.name)
+          .replace(/-/g, "")
+          .slice(0, 12)
+          .toUpperCase(),
+        sw_version: "1.0.0",
+        hw_version: "1.0.0",
+      };
+    }
 
     this.accessory.on(PlatformAccessoryEvent.IDENTIFY, () => {
       this.log.info("Identify requested", basicInfo);
@@ -569,7 +594,11 @@ export class CameraAccessory {
     this.setupInfoAccessory(basicInfo);
 
     if (!this.config.disableMotionSensorAccessory) {
-      await this.setupMotionSensorAccessory();
+      try {
+        await this.setupMotionSensorAccessory();
+      } catch (err) {
+        this.log.warn("Error setting up motion sensor accessory:", err);
+      }
     }
 
     if (!this.config.disableStreaming) {
@@ -619,8 +648,10 @@ export class CameraAccessory {
       );
     }
 
-    // // Publish as external accessory
-    this.log.debug("Publishing accessory...");
+    // Publish as external accessory
+    this.log.info(
+      `Camera "${this.config.name}" published as external accessory. To pair in Apple Home: tap (+) -> Add Accessory -> More options... -> select "${this.config.name}" and enter your Homebridge setup PIN.`
+    );
     this.api.publishExternalAccessories(PLUGIN_ID, [this.accessory]);
 
     // Setup the polling by giving a random delay
@@ -631,6 +662,6 @@ export class CameraAccessory {
     }, this.randomSeed * 3_000);
 
     this.log.debug("Notifying initial values...");
-    await this.getStatusAndNotify();
+    void this.getStatusAndNotify();
   }
 }
