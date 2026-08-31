@@ -233,9 +233,14 @@ export class NightVisionDetector extends EventEmitter {
 
   private captureFrame(args: string[]): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
-      const ffmpeg = spawn(this.videoProcessor, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
+      let ffmpeg;
+      try {
+        ffmpeg = spawn(this.videoProcessor, args, {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      } catch (err) {
+        return reject(err);
+      }
 
       const chunks: Buffer[] = [];
       let stderrOutput = "";
@@ -249,15 +254,15 @@ export class NightVisionDetector extends EventEmitter {
           } catch {
             // ignore
           }
-          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
+          reject(new Error("FFmpeg frame capture timed out after 5000ms"));
         }
-      }, 4000);
+      }, 5000);
 
-      ffmpeg.stdout.on("data", (chunk: Buffer) => {
+      ffmpeg.stdout?.on("data", (chunk: Buffer) => {
         chunks.push(chunk);
       });
 
-      ffmpeg.stderr.on("data", (chunk: Buffer) => {
+      ffmpeg.stderr?.on("data", (chunk: Buffer) => {
         stderrOutput += chunk.toString("utf8");
       });
 
