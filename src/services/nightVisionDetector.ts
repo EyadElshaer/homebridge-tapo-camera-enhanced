@@ -157,44 +157,25 @@ export class NightVisionDetector extends EventEmitter {
     this.lastCheckTime = Date.now();
 
     try {
-      const streamUrl = this.camera.getAuthenticatedStreamUrl(true);
       const rtspTransport = this.config.rtspTransport ?? "tcp";
+      let frameBuffer: Buffer | undefined;
 
-      const ffmpegArgs = [
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-rtsp_transport",
-        rtspTransport,
-        "-stimeout",
-        "8000000",
-        "-fflags",
-        "+nobuffer+genpts+discardcorrupt",
-        "-flags",
-        "low_delay",
-        "-an",
-        "-analyzeduration",
-        "500000",
-        "-probesize",
-        "500000",
-        "-i",
-        streamUrl,
-        "-frames:v",
-        "1",
-        "-s",
-        "64x36",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgb24",
-        "-",
-      ];
+      try {
+        const subStreamUrl = this.camera.getAuthenticatedStreamUrl(true);
+        const subStreamArgs = this.buildFfmpegArgs(subStreamUrl, rtspTransport);
+        this.log.debug(
+          `NightVisionDetector: Capturing frame from sub-stream: ${this.videoProcessor} ${subStreamArgs.join(" ")}`
+        );
+        frameBuffer = await this.captureFrame(subStreamArgs);
+      } catch (subErr) {
+        this.log.debug(
+          `NightVisionDetector: Sub-stream capture failed (${subErr instanceof Error ? subErr.message : subErr}), trying main stream fallback...`
+        );
+        const mainStreamUrl = this.camera.getAuthenticatedStreamUrl(false);
+        const mainStreamArgs = this.buildFfmpegArgs(mainStreamUrl, rtspTransport);
+        frameBuffer = await this.captureFrame(mainStreamArgs);
+      }
 
-      this.log.debug(
-        `NightVisionDetector: Capturing frame for darkness analysis: ${this.videoProcessor} ${ffmpegArgs.join(" ")}`
-      );
-
-      const frameBuffer = await this.captureFrame(ffmpegArgs);
       const threshold = this.config.nightVisionThreshold ?? 6.0;
       const newState = analyzeRgbFrame(frameBuffer, threshold);
 
@@ -207,7 +188,7 @@ export class NightVisionDetector extends EventEmitter {
 
       if (stateChanged) {
         this.log.info(
-          `NightVisionDetector: Camera switched to ${newState.isDark ? "DARK (Night Vision / B&W)" : "LIGHT (Day / Color)"} mode`
+          `NightVisionDetector: Camera switched to ${newState.isDark ? "DARK (Night Vision / B&W)" : "LIGHT (Day / Color)"} mode (ambient lux: ${newState.ambientLux})`
         );
         this.emit("change", newState);
       }
@@ -215,13 +196,45 @@ export class NightVisionDetector extends EventEmitter {
       this.emit("update", newState);
       return newState;
     } catch (err) {
-      this.log.debug(
+      this.log.warn(
         `NightVisionDetector: Error capturing frame for darkness analysis (${err instanceof Error ? err.message : err})`
       );
       return this.currentState;
     } finally {
       this.isChecking = false;
     }
+  }
+
+  private buildFfmpegArgs(streamUrl: string, rtspTransport: string): string[] {
+    return [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-rtsp_transport",
+      rtspTransport,
+      "-timeout",
+      "5000000",
+      "-fflags",
+      "+nobuffer+genpts+discardcorrupt",
+      "-flags",
+      "low_delay",
+      "-an",
+      "-analyzeduration",
+      "500000",
+      "-probesize",
+      "500000",
+      "-i",
+      streamUrl,
+      "-frames:v",
+      "1",
+      "-s",
+      "64x36",
+      "-f",
+      "rawvideo",
+      "-pix_fmt",
+      "rgb24",
+      "-",
+    ];
   }
 
   private captureFrame(args: string[]): Promise<Buffer> {
