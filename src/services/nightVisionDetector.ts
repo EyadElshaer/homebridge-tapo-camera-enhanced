@@ -1,9 +1,21 @@
 import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import { Logging } from "homebridge";
-import ffmpegPath from "ffmpeg-for-homebridge";
 import { TAPOCamera } from "../tapoCamera";
 import { CameraConfig } from "../cameraAccessory";
+
+function resolveFFmpegPath(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ffmpegModule = require("ffmpeg-for-homebridge");
+    if (typeof ffmpegModule === "string") return ffmpegModule;
+    if (ffmpegModule && typeof ffmpegModule.default === "string")
+      return ffmpegModule.default;
+  } catch {
+    // ignore
+  }
+  return "ffmpeg";
+}
 
 export interface NightVisionState {
   isDark: boolean;
@@ -82,9 +94,7 @@ export class NightVisionDetector extends EventEmitter {
     videoProcessor?: string
   ) {
     super();
-    this.videoProcessor =
-      videoProcessor ||
-      (typeof ffmpegPath === "string" ? ffmpegPath : "ffmpeg");
+    this.videoProcessor = videoProcessor || resolveFFmpegPath();
   }
 
   public getState(): NightVisionState {

@@ -9,10 +9,22 @@ import {
 } from "homebridge";
 import { spawn, ChildProcess } from "child_process";
 import readline from "readline";
-import ffmpegPath from "ffmpeg-for-homebridge";
 import { CameraConfig } from "../cameraAccessory";
 import { TAPOCamera } from "../tapoCamera";
 import { parseFragmentedMP4 } from "./mp4Parser";
+
+function resolveFFmpegPath(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const ffmpegModule = require("ffmpeg-for-homebridge");
+    if (typeof ffmpegModule === "string") return ffmpegModule;
+    if (ffmpegModule && typeof ffmpegModule.default === "string")
+      return ffmpegModule.default;
+  } catch {
+    // ignore
+  }
+  return "ffmpeg";
+}
 
 export interface HKSVConfig {
   source?: string;
@@ -46,9 +58,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
     private readonly isAudioActive: () => boolean,
     videoProcessor?: string
   ) {
-    this.videoProcessor =
-      videoProcessor ||
-      (typeof ffmpegPath === "string" ? ffmpegPath : "ffmpeg");
+    this.videoProcessor = videoProcessor || resolveFFmpegPath();
   }
 
   updateRecordingActive(active: boolean): void {
