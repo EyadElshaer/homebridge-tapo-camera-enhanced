@@ -128,7 +128,7 @@ export class NightVisionDetector extends EventEmitter {
   }
 
   /**
-   * Trigger an immediate check with debouncing (e.g. on motion detected).
+   * Trigger an immediate check with debouncing (e.g. on motion detected or user query).
    */
   public triggerCheck(debounceMs = 5000): void {
     const now = Date.now();
@@ -153,13 +153,6 @@ export class NightVisionDetector extends EventEmitter {
       return this.currentState;
     }
 
-    if (this.isStreamActive && this.isStreamActive()) {
-      this.log.debug(
-        "NightVisionDetector: Skipping darkness check because a live stream or recording is currently active."
-      );
-      return this.currentState;
-    }
-
     this.isChecking = true;
     this.lastCheckTime = Date.now();
 
@@ -173,17 +166,20 @@ export class NightVisionDetector extends EventEmitter {
         "error",
         "-rtsp_transport",
         rtspTransport,
+        "-stimeout",
+        "8000000",
         "-fflags",
         "+nobuffer+genpts+discardcorrupt",
         "-flags",
         "low_delay",
+        "-an",
         "-analyzeduration",
         "500000",
         "-probesize",
         "500000",
         "-i",
         streamUrl,
-        "-vframes",
+        "-frames:v",
         "1",
         "-s",
         "64x36",
@@ -230,57 +226,101 @@ export class NightVisionDetector extends EventEmitter {
 
   private captureFrame(args: string[]): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
-      const ffmpeg = spawn(this.videoProcessor, args, {
-        stdio: ["ignore", "pipe", "pipe"],
-      });
-
-      const chunks: Buffer[] = [];
-      let stderrOutput = "";
       let isResolved = false;
+      const targetSize = 64 * 36 * 3; // 6912 bytes for 64x36 rgb24
+      const chunks: Buffer[] = [];
+      let totalReceived = 0;
+      let stderrOutput = "";
+      let ffmpegProcess: ReturnType<typeof spawn> | undefined;
+
+      const cleanupProcess = () => {
+        if (!ffmpegProcess) return;
+        try {
+          if (!ffmpegProcess.killed) {
+            ffmpegProcess.kill("SIGTERM");
+            ffmpegProcess.kill();
+          }
+        } catch {
+          // ignore
+        }
+        try {
+          ffmpegProcess.stdout?.destroy();
+          ffmpegProcess.stderr?.destroy();
+        } catch {
+          // ignore
+        }
+      };
+
+      const finishSuccess = (resultBuffer: Buffer) => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(timeout);
+        cleanupProcess();
+        resolve(resultBuffer);
+      };
+
+      const finishError = (err: Error) => {
+        if (isResolved) return;
+        isResolved = true;
+        clearTimeout(timeout);
+        cleanupProcess();
+        reject(err);
+      };
 
       const timeout = setTimeout(() => {
         if (!isResolved) {
-          isResolved = true;
-          try {
-            ffmpeg.kill("SIGKILL");
-          } catch {
-            // ignore
+          if (totalReceived >= targetSize) {
+            finishSuccess(Buffer.concat(chunks).subarray(0, targetSize));
+          } else {
+            finishError(
+              new Error(
+                `FFmpeg frame capture timed out after 10000ms (received ${totalReceived}/${targetSize} bytes). Stderr: ${stderrOutput.trim()}`
+              )
+            );
           }
-          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
         }
-      }, 4000);
+      }, 10000);
 
-      ffmpeg.stdout.on("data", (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
+      try {
+        const ffmpeg = spawn(this.videoProcessor, args, {
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        ffmpegProcess = ffmpeg;
 
-      ffmpeg.stderr.on("data", (chunk: Buffer) => {
-        stderrOutput += chunk.toString("utf8");
-      });
+        ffmpeg.stdout.on("data", (chunk: Buffer) => {
+          if (isResolved) return;
+          chunks.push(chunk);
+          totalReceived += chunk.length;
+          if (totalReceived >= targetSize) {
+            finishSuccess(Buffer.concat(chunks).subarray(0, targetSize));
+          }
+        });
 
-      ffmpeg.on("error", (err) => {
-        clearTimeout(timeout);
-        if (!isResolved) {
-          isResolved = true;
-          reject(err);
-        }
-      });
+        ffmpeg.stderr.on("data", (chunk: Buffer) => {
+          stderrOutput += chunk.toString("utf8");
+        });
 
-      ffmpeg.on("close", (code) => {
-        clearTimeout(timeout);
-        if (isResolved) return;
-        isResolved = true;
+        ffmpeg.on("error", (err) => {
+          finishError(err);
+        });
 
-        if (code === 0 || chunks.length > 0) {
-          resolve(Buffer.concat(chunks));
-        } else {
-          reject(
-            new Error(
-              `FFmpeg exited with code ${code}. Stderr: ${stderrOutput.trim()}`
-            )
-          );
-        }
-      });
+        ffmpeg.on("close", (code) => {
+          if (isResolved) return;
+          if (totalReceived > 0) {
+            finishSuccess(Buffer.concat(chunks));
+          } else {
+            finishError(
+              new Error(
+                `FFmpeg exited with code ${code}. Stderr: ${stderrOutput.trim()}`
+              )
+            );
+          }
+        });
+      } catch (spawnErr) {
+        finishError(
+          spawnErr instanceof Error ? spawnErr : new Error(String(spawnErr))
+        );
+      }
     });
   }
 }

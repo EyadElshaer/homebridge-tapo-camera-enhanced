@@ -563,11 +563,7 @@ export class CameraAccessory {
           motionDetected
         );
 
-        if (
-          motionDetected &&
-          this.nightVisionDetector &&
-          !this.isStreamActive()
-        ) {
+        if (motionDetected && this.nightVisionDetector) {
           this.nightVisionDetector.triggerCheck();
         }
       });
@@ -611,6 +607,7 @@ export class CameraAccessory {
         this.nightVisionOccupancyService
           .getCharacteristic(this.api.hap.Characteristic.OccupancyDetected)
           .onGet(() => {
+            void this.nightVisionDetector?.triggerCheck(10000);
             const isDark = this.nightVisionDetector?.isDark ?? false;
             return isDark
               ? this.api.hap.Characteristic.OccupancyDetected.OCCUPANCY_DETECTED
@@ -638,7 +635,9 @@ export class CameraAccessory {
             this.api.hap.Characteristic.CurrentAmbientLightLevel
           )
           .onGet(() => {
-            return this.nightVisionDetector?.ambientLux ?? 100;
+            void this.nightVisionDetector?.triggerCheck(10000);
+            const lux = this.nightVisionDetector?.ambientLux ?? 100;
+            return Math.max(0.0001, Math.min(100000, lux));
           });
       }
 
@@ -660,6 +659,7 @@ export class CameraAccessory {
         this.nightVisionContactService
           .getCharacteristic(this.api.hap.Characteristic.ContactSensorState)
           .onGet(() => {
+            void this.nightVisionDetector?.triggerCheck(10000);
             const isDark = this.nightVisionDetector?.isDark ?? false;
             return isDark
               ? this.api.hap.Characteristic.ContactSensorState
@@ -680,9 +680,13 @@ export class CameraAccessory {
         }
 
         if (this.nightVisionLightService) {
+          const safeLux = Math.max(
+            0.0001,
+            Math.min(100000, state.ambientLux || 0.1)
+          );
           this.nightVisionLightService.updateCharacteristic(
             this.api.hap.Characteristic.CurrentAmbientLightLevel,
-            state.ambientLux
+            safeLux
           );
         }
 
