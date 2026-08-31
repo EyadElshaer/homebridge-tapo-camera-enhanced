@@ -100,7 +100,12 @@ export class RecordingDelegate implements CameraRecordingDelegate {
     ];
 
     const videoArguments: string[] = [];
-    const vcodec = this.cameraConfig.hksvConfig?.vcodec || "libx264";
+    const vcodec =
+      this.cameraConfig.hksvConfig?.vcodec ||
+      (this.cameraConfig.videoCodec &&
+      this.cameraConfig.videoCodec !== "copy"
+        ? this.cameraConfig.videoCodec
+        : "libx264");
 
     const profile =
       this.configuration.videoCodec.parameters.profile ===
@@ -153,8 +158,14 @@ export class RecordingDelegate implements CameraRecordingDelegate {
         level,
         "-b:v",
         `${videoBitrate}k`,
+        "-bufsize",
+        `${videoBitrate * 2}k`,
+        "-maxrate",
+        `${videoBitrate}k`,
         "-vf",
         `scale=w=${width}:h=${height}:force_original_aspect_ratio=1,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
+        "-sws_flags",
+        "fast_bilinear",
         "-r",
         `${fps}`,
         "-g",
@@ -170,7 +181,16 @@ export class RecordingDelegate implements CameraRecordingDelegate {
           ...this.cameraConfig.hksvConfig.encoderOptions.split(/\s+/)
         );
       } else if (vcodec === "libx264") {
-        videoArguments.push("-preset", "ultrafast", "-tune", "zerolatency");
+        videoArguments.push(
+          "-preset",
+          "ultrafast",
+          "-tune",
+          "zerolatency",
+          "-threads",
+          "0",
+          "-sc_threshold",
+          "0"
+        );
       }
     }
 
