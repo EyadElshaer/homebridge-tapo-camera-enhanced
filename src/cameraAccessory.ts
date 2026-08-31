@@ -111,9 +111,10 @@ export class CameraAccessory {
     ) as unknown as Logging;
 
     this.api = this.platform.api;
+    const accessoryName = this.config?.name || "TAPO Camera";
     this.accessory = new this.api.platformAccessory(
-      this.config.name,
-      this.api.hap.uuid.generate(this.config.name),
+      accessoryName,
+      this.api.hap.uuid.generate(accessoryName + (this.config?.ipAddress || "")),
       this.api.hap.Categories.CAMERA
     );
     this.camera = new TAPOCamera(this.log, this.config);

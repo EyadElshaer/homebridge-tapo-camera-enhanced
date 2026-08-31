@@ -8,7 +8,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { Cam } from "onvif";
-import { EventEmitter } from "stream";
+import { EventEmitter } from "events";
 
 export class OnvifCamera {
   private events: EventEmitter | undefined;
@@ -87,14 +87,18 @@ export class OnvifCamera {
     this.log.debug("Starting ONVIF listener...");
 
     onvifDevice.on("event", (event: NotificationMessage) => {
-      if (event?.topic?._?.match(/RuleEngine\/CellMotionDetector\/Motion$/)) {
-        const motion = event.message.message.data.simpleItem.$.Value;
-        if (motion !== this.lastMotionValue) {
-          this.lastMotionValue = Boolean(motion);
-          if (this.events) {
-            this.events.emit("motion", motion);
+      try {
+        if (event?.topic?._?.match(/RuleEngine\/CellMotionDetector\/Motion$/)) {
+          const motion = event?.message?.message?.data?.simpleItem?.$?.Value;
+          if (motion !== undefined && motion !== this.lastMotionValue) {
+            this.lastMotionValue = Boolean(motion);
+            if (this.events) {
+              this.events.emit("motion", motion);
+            }
           }
         }
+      } catch (err) {
+        this.log.debug("Error handling ONVIF event:", err);
       }
     });
   }
