@@ -332,14 +332,31 @@ export class CameraAccessory {
             );
           },
           () => {
+            const recordingManagement = this.accessory.getService(
+              this.api.hap.Service.CameraRecordingManagement
+            );
+            if (recordingManagement) {
+              const char = recordingManagement.getCharacteristic(
+                this.api.hap.Characteristic.RecordingAudioActive
+              );
+              if (char && char.value !== undefined && char.value !== null) {
+                return Boolean(char.value);
+              }
+            }
+
             const operatingMode = this.accessory.getService(
               this.api.hap.Service.CameraOperatingMode
             );
-            if (!operatingMode) return true;
-            const char = operatingMode.getCharacteristic(
-              this.api.hap.Characteristic.RecordingAudioActive
-            );
-            return char ? Boolean(char.value) : true;
+            if (operatingMode) {
+              const char = operatingMode.getCharacteristic(
+                this.api.hap.Characteristic.RecordingAudioActive
+              );
+              if (char && char.value !== undefined && char.value !== null) {
+                return Boolean(char.value);
+              }
+            }
+
+            return true;
           }
         );
 
@@ -347,13 +364,25 @@ export class CameraAccessory {
           {
             type: this.api.hap.AudioRecordingCodecType.AAC_LC,
             bitrateMode: 0,
-            samplerate: [this.api.hap.AudioRecordingSamplerate.KHZ_32],
+            samplerate: [
+              this.api.hap.AudioRecordingSamplerate.KHZ_16,
+              this.api.hap.AudioRecordingSamplerate.KHZ_24,
+              this.api.hap.AudioRecordingSamplerate.KHZ_32,
+              this.api.hap.AudioRecordingSamplerate.KHZ_44_1,
+              this.api.hap.AudioRecordingSamplerate.KHZ_48,
+            ],
             audioChannels: 1,
           },
           {
             type: this.api.hap.AudioRecordingCodecType.AAC_ELD,
             bitrateMode: 0,
-            samplerate: [this.api.hap.AudioRecordingSamplerate.KHZ_32],
+            samplerate: [
+              this.api.hap.AudioRecordingSamplerate.KHZ_16,
+              this.api.hap.AudioRecordingSamplerate.KHZ_24,
+              this.api.hap.AudioRecordingSamplerate.KHZ_32,
+              this.api.hap.AudioRecordingSamplerate.KHZ_44_1,
+              this.api.hap.AudioRecordingSamplerate.KHZ_48,
+            ],
             audioChannels: 1,
           },
         ];

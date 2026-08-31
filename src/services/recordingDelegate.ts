@@ -203,17 +203,30 @@ export class RecordingDelegate implements CameraRecordingDelegate {
           break;
       }
 
+      const isAacEld =
+        this.configuration.audioCodec.type ===
+        this.hap.AudioRecordingCodecType.AAC_ELD;
+
+      if (acodec === "libfdk_aac") {
+        audioArguments.push(
+          "-acodec",
+          "libfdk_aac",
+          "-profile:a",
+          isAacEld ? "aac_eld" : "aac_low"
+        );
+      } else {
+        audioArguments.push("-acodec", "aac");
+      }
+
       audioArguments.push(
-        "-bsf:a",
-        "aac_adtstoasc",
-        "-acodec",
-        acodec === "libfdk_aac" ? "libfdk_aac" : "aac",
         "-ar",
         `${samplerate}k`,
         "-b:a",
         `${this.configuration.audioCodec.bitrate || 64}k`,
         "-ac",
-        `${this.configuration.audioCodec.audioChannels || 1}`
+        `${this.configuration.audioCodec.audioChannels || 1}`,
+        "-af",
+        "aresample=async=1000"
       );
     } else {
       audioArguments.push("-an");
