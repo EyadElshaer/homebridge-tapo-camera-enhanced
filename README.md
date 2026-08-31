@@ -123,7 +123,7 @@ To keep the ONVIF motion sensor enabled, provide `streamUser` and `streamPasswor
 
 #### RTSP transport
 
-Camera streams use UDP by default. Set `rtspTransport` to `"tcp"` for a camera if UDP is unreliable on your network.
+Camera streams use TCP by default for reliable streaming without packet loss. Set `rtspTransport` to `"udp"` if preferred on low-latency wired networks.
 
 ```json
 {

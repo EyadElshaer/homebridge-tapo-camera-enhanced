@@ -221,12 +221,12 @@
           "rtspTransport": {
             "title": "RTSP Transport",
             "type": "string",
-            "default": "udp",
+            "default": "tcp",
             "enum": [
-              "udp",
-              "tcp"
+              "tcp",
+              "udp"
             ],
-            "description": "Transport protocol used to receive the camera RTSP stream. UDP is the default; try TCP if UDP is unreliable on your network."
+            "description": "Transport protocol used to receive the camera RTSP stream. TCP is the default for stable video streaming without packet drops or lag; try UDP if preferred on low-latency wired networks."
           },
           "eyesToggleAccessoryName": {
             "title": "Eyes (privacy mode) toggle Name",

@@ -234,6 +234,7 @@ export class CameraAccessory {
       this.config.videoConfig?.returnAudioTarget;
 
     const vcodec = this.config.videoCodec ?? "copy";
+    const rtspTransport = this.config.rtspTransport ?? "tcp";
     const config: VideoConfig = {
       audio: true, // Set audio as true as most of TAPO cameras have audio
       vcodec: vcodec,
@@ -248,7 +249,7 @@ export class CameraAccessory {
       packetSize: this.config.videoPacketSize,
       forceMax: this.config.videoForceMax,
       // async resampling prevents backward audio DTS from pcm_alaw packet jitter.
-      mapaudio: "0:a:0 -af aresample=async=16000",
+      mapaudio: "0:a:0 -af aresample=async=1000",
       ...(isTwoWayAudio && returnAudioTarget
         ? {
             returnAudioTarget,
@@ -259,7 +260,7 @@ export class CameraAccessory {
         : {}),
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport ${this.config.rtspTransport ?? "udp"} -i ${streamUrl}`,
+      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {

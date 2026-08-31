@@ -86,13 +86,19 @@ export class RecordingDelegate implements CameraRecordingDelegate {
         Boolean(this.cameraConfig.lowQuality)
       );
 
-    const rtspTransport = this.cameraConfig.rtspTransport ?? "udp";
+    const rtspTransport = this.cameraConfig.rtspTransport ?? "tcp";
     const ffmpegInput: string[] = [
       "-hide_banner",
       "-loglevel",
       this.cameraConfig.debug ? "verbose" : "error",
       "-fflags",
-      "+genpts+discardcorrupt",
+      "+nobuffer+genpts+discardcorrupt",
+      "-flags",
+      "low_delay",
+      "-analyzeduration",
+      "500000",
+      "-probesize",
+      "500000",
       "-rtsp_transport",
       rtspTransport,
       "-i",
