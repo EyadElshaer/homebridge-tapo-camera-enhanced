@@ -148,7 +148,13 @@ export async function* parseFragmentedMP4(
         break;
       }
 
-      const data = await readLength(readable, dataLength);
+      let data: Buffer;
+      try {
+        data = await readLength(readable, dataLength);
+      } catch {
+        break;
+      }
+
       if (timer) {
         clearTimeout(timer);
       }

@@ -310,6 +310,8 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       this.closeRecordingStream(streamId);
     }, MAX_RECORDING_MINUTES * 60 * 1000);
 
+    const POST_MOTION_FRAGMENTS = 2; // ~8 seconds of post-roll footage after motion ends
+    let postMotionRemaining = POST_MOTION_FRAGMENTS;
     let pending: Buffer[] = [];
 
     try {
@@ -320,11 +322,26 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       for await (const box of parseFragmentedMP4(cp.stdout)) {
         pending.push(box.header, box.data);
 
-        if (box.type === "moov" || box.type === "mdat") {
+        if (box.type === "moov") {
           const fragment = Buffer.concat(pending);
           pending = [];
 
-          const isLast = this.isClosing;
+          yield {
+            data: fragment,
+            isLast: false,
+          };
+        } else if (box.type === "mdat") {
+          const fragment = Buffer.concat(pending);
+          pending = [];
+
+          const motion = this.getMotionDetected ? this.getMotionDetected() : false;
+          if (motion) {
+            postMotionRemaining = POST_MOTION_FRAGMENTS;
+          } else {
+            postMotionRemaining--;
+          }
+
+          const isLast = postMotionRemaining <= 0 || this.isClosing;
 
           yield {
             data: fragment,
@@ -333,7 +350,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
 
           if (isLast) {
             this.log.debug(
-              "Ending HSV recording session because stream is closing."
+              "Ending HSV recording session cleanly with endOfStream."
             );
             break;
           }
@@ -355,10 +372,17 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       const proc = this.currentProcess;
       this.currentProcess = undefined;
       try {
-        proc.kill("SIGKILL");
+        proc.kill("SIGTERM");
       } catch {
         // ignore
       }
+      setTimeout(() => {
+        try {
+          proc.kill("SIGKILL");
+        } catch {
+          // ignore
+        }
+      }, 2000);
     }
   }
 
