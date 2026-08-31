@@ -536,17 +536,21 @@ export class CameraAccessory {
       );
 
       const eventEmitter = await this.camera.getEventEmitter();
-      eventEmitter.addListener("motion", (motionDetected) => {
+      eventEmitter.addListener("motion", async (motionDetected) => {
         this.log.debug("Motion detected", motionDetected);
+
+        if (motionDetected && this.nightVisionDetector) {
+          try {
+            await this.nightVisionDetector.checkDarkness();
+          } catch {
+            // ignore
+          }
+        }
 
         this.motionSensorService?.updateCharacteristic(
           this.api.hap.Characteristic.MotionDetected,
           motionDetected
         );
-
-        if (motionDetected && this.nightVisionDetector) {
-          this.nightVisionDetector.triggerCheck();
-        }
       });
     } catch (err) {
       this.log.error("Error setting up motion sensor accessory:", err);
