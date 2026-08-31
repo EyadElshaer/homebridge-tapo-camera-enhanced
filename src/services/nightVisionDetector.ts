@@ -1,32 +1,9 @@
 import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import { Logging } from "homebridge";
+import ffmpegPath from "ffmpeg-for-homebridge";
 import { TAPOCamera } from "../tapoCamera";
 import { CameraConfig } from "../cameraAccessory";
-
-function resolveFFmpegPath(): string {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ffmpegModule = require("ffmpeg-for-homebridge");
-    if (typeof ffmpegModule === "string") return ffmpegModule;
-    if (ffmpegModule && typeof ffmpegModule.default === "string")
-      return ffmpegModule.default;
-  } catch {
-    // ignore
-  }
-
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const ffmpegModule = require("homebridge-camera-ffmpeg/node_modules/ffmpeg-for-homebridge");
-    if (typeof ffmpegModule === "string") return ffmpegModule;
-    if (ffmpegModule && typeof ffmpegModule.default === "string")
-      return ffmpegModule.default;
-  } catch {
-    // ignore
-  }
-
-  return "ffmpeg";
-}
 
 export interface NightVisionState {
   isDark: boolean;
@@ -91,8 +68,6 @@ export class NightVisionDetector extends EventEmitter {
   private pollTimer: NodeJS.Timeout | undefined;
   private isChecking = false;
   private lastCheckTime = 0;
-  private hasPendingCheck = false;
-  private currentCheckPromise: Promise<NightVisionState> | undefined;
   private currentState: NightVisionState = {
     isDark: false,
     ambientLux: 100,
@@ -107,7 +82,9 @@ export class NightVisionDetector extends EventEmitter {
     videoProcessor?: string
   ) {
     super();
-    this.videoProcessor = videoProcessor || resolveFFmpegPath();
+    this.videoProcessor =
+      videoProcessor ||
+      (typeof ffmpegPath === "string" ? ffmpegPath : "ffmpeg");
   }
 
   public getState(): NightVisionState {
@@ -125,18 +102,18 @@ export class NightVisionDetector extends EventEmitter {
   /**
    * Start periodic background darkness polling.
    */
-  public start(intervalSeconds = 10): void {
+  public start(intervalSeconds = 30): void {
     this.stop();
-    const intervalMs = Math.max(2, intervalSeconds) * 1000;
+    const intervalMs = Math.max(10, intervalSeconds) * 1000;
 
     this.pollTimer = setInterval(() => {
       void this.checkDarkness();
     }, intervalMs);
 
-    // Initial check after short startup delay
+    // Initial check with random jitter
     setTimeout(() => {
       void this.checkDarkness();
-    }, 1000);
+    }, 2000 + Math.random() * 3000);
   }
 
   /**
@@ -150,123 +127,96 @@ export class NightVisionDetector extends EventEmitter {
   }
 
   /**
-   * Trigger an immediate check (e.g. on motion detected).
+   * Trigger an immediate check with debouncing (e.g. on motion detected).
    */
-  public triggerCheck(): void {
+  public triggerCheck(debounceMs = 5000): void {
     const now = Date.now();
-    // Debounce checks within 2 seconds
-    if (now - this.lastCheckTime < 2000) {
-      this.hasPendingCheck = true;
+    if (now - this.lastCheckTime < debounceMs) {
+      this.log.debug(
+        "NightVisionDetector: Skipping check because recent check occurred within debounce window"
+      );
       return;
     }
     void this.checkDarkness();
   }
 
   /**
-   * Captures a single 32x18 raw RGB frame via FFmpeg and analyzes color divergence.
+   * Captures a single 64x36 raw RGB frame via FFmpeg and analyzes color divergence.
    */
   public async checkDarkness(): Promise<NightVisionState> {
-    if (!this.config.streamUser || !this.config.streamPassword) {
+    if (this.isChecking) {
       return this.currentState;
     }
 
-    if (this.isChecking) {
-      this.hasPendingCheck = true;
-      if (this.currentCheckPromise) {
-        return this.currentCheckPromise;
-      }
+    if (!this.config.streamUser || !this.config.streamPassword) {
       return this.currentState;
     }
 
     this.isChecking = true;
     this.lastCheckTime = Date.now();
 
-    this.currentCheckPromise = (async () => {
-      try {
-        const streamUrl = this.camera.getAuthenticatedStreamUrl(true);
-        const rtspTransport = this.config.rtspTransport ?? "tcp";
+    try {
+      const streamUrl = this.camera.getAuthenticatedStreamUrl(true);
+      const rtspTransport = this.config.rtspTransport ?? "tcp";
 
-        const ffmpegArgs = [
-          "-hide_banner",
-          "-loglevel",
-          "error",
-          "-rtsp_transport",
-          rtspTransport,
-          "-flags",
-          "low_delay",
-          "-fflags",
-          "+nobuffer+discardcorrupt",
-          "-probesize",
-          "32768",
-          "-analyzeduration",
-          "0",
-          "-i",
-          streamUrl,
-          "-vframes",
-          "1",
-          "-s",
-          "32x18",
-          "-f",
-          "rawvideo",
-          "-pix_fmt",
-          "rgb24",
-          "-",
-        ];
+      const ffmpegArgs = [
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-rtsp_transport",
+        rtspTransport,
+        "-i",
+        streamUrl,
+        "-vframes",
+        "1",
+        "-s",
+        "64x36",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-",
+      ];
 
-        this.log.debug(
-          `NightVisionDetector: Capturing frame for darkness analysis: ${this.videoProcessor} ${ffmpegArgs.join(" ")}`
+      this.log.debug(
+        `NightVisionDetector: Capturing frame for darkness analysis: ${this.videoProcessor} ${ffmpegArgs.join(" ")}`
+      );
+
+      const frameBuffer = await this.captureFrame(ffmpegArgs);
+      const threshold = this.config.nightVisionThreshold ?? 6.0;
+      const newState = analyzeRgbFrame(frameBuffer, threshold);
+
+      const stateChanged = newState.isDark !== this.currentState.isDark;
+      this.currentState = newState;
+
+      this.log.debug(
+        `NightVisionDetector: Analysis result -> isDark: ${newState.isDark}, colorDiff: ${newState.colorDiff} (threshold: ${threshold}), luminance: ${newState.luminance}, lux: ${newState.ambientLux}`
+      );
+
+      if (stateChanged) {
+        this.log.info(
+          `NightVisionDetector: Camera switched to ${newState.isDark ? "DARK (Night Vision / B&W)" : "LIGHT (Day / Color)"} mode`
         );
-
-        const frameBuffer = await this.captureFrame(ffmpegArgs);
-        const threshold = this.config.nightVisionThreshold ?? 6.0;
-        const newState = analyzeRgbFrame(frameBuffer, threshold);
-
-        const stateChanged = newState.isDark !== this.currentState.isDark;
-        this.currentState = newState;
-
-        this.log.debug(
-          `NightVisionDetector: Analysis result -> isDark: ${newState.isDark}, colorDiff: ${newState.colorDiff} (threshold: ${threshold}), luminance: ${newState.luminance}, lux: ${newState.ambientLux}`
-        );
-
-        if (stateChanged) {
-          this.log.info(
-            `NightVisionDetector: Camera switched to ${newState.isDark ? "DARK (Night Vision / B&W)" : "LIGHT (Day / Color)"} mode`
-          );
-          this.emit("change", newState);
-        }
-
-        this.emit("update", newState);
-        return newState;
-      } catch (err) {
-        this.log.debug(
-          `NightVisionDetector: Error capturing frame for darkness analysis (${err instanceof Error ? err.message : err})`
-        );
-        return this.currentState;
-      } finally {
-        this.isChecking = false;
-        this.currentCheckPromise = undefined;
-        if (this.hasPendingCheck) {
-          this.hasPendingCheck = false;
-          setTimeout(() => {
-            void this.checkDarkness();
-          }, 500);
-        }
+        this.emit("change", newState);
       }
-    })();
 
-    return this.currentCheckPromise;
+      this.emit("update", newState);
+      return newState;
+    } catch (err) {
+      this.log.debug(
+        `NightVisionDetector: Error capturing frame for darkness analysis (${err instanceof Error ? err.message : err})`
+      );
+      return this.currentState;
+    } finally {
+      this.isChecking = false;
+    }
   }
 
   private captureFrame(args: string[]): Promise<Buffer> {
     return new Promise<Buffer>((resolve, reject) => {
-      let ffmpeg;
-      try {
-        ffmpeg = spawn(this.videoProcessor, args, {
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-      } catch (err) {
-        return reject(err);
-      }
+      const ffmpeg = spawn(this.videoProcessor, args, {
+        stdio: ["ignore", "pipe", "pipe"],
+      });
 
       const chunks: Buffer[] = [];
       let stderrOutput = "";
@@ -280,15 +230,15 @@ export class NightVisionDetector extends EventEmitter {
           } catch {
             // ignore
           }
-          reject(new Error("FFmpeg frame capture timed out after 4000ms"));
+          reject(new Error("FFmpeg frame capture timed out after 8000ms"));
         }
-      }, 4000);
+      }, 8000);
 
-      ffmpeg.stdout?.on("data", (chunk: Buffer) => {
+      ffmpeg.stdout.on("data", (chunk: Buffer) => {
         chunks.push(chunk);
       });
 
-      ffmpeg.stderr?.on("data", (chunk: Buffer) => {
+      ffmpeg.stderr.on("data", (chunk: Buffer) => {
         stderrOutput += chunk.toString("utf8");
       });
 

@@ -98,23 +98,16 @@ export class CameraAccessory {
     private readonly platform: CameraPlatform,
     private readonly config: CameraConfig
   ) {
-    const prefix = `${this.platform.log?.prefix || "tapo-camera"}/${this.config?.name || "Camera"}`;
-    this.log = Object.assign(
-      (message: string, ...parameters: unknown[]) => this.platform.log(message, ...parameters),
-      {
-        prefix,
-        info: (message: string, ...parameters: unknown[]) => this.platform.log.info(message, ...parameters),
-        warn: (message: string, ...parameters: unknown[]) => this.platform.log.warn(message, ...parameters),
-        error: (message: string, ...parameters: unknown[]) => this.platform.log.error(message, ...parameters),
-        debug: (message: string, ...parameters: unknown[]) => this.platform.log.debug(message, ...parameters),
-      }
-    ) as unknown as Logging;
+    // @ts-expect-error - private property
+    this.log = {
+      ...this.platform.log,
+      prefix: this.platform.log.prefix + `/${this.config.name}`,
+    };
 
     this.api = this.platform.api;
-    const accessoryName = this.config?.name || "TAPO Camera";
     this.accessory = new this.api.platformAccessory(
-      accessoryName,
-      this.api.hap.uuid.generate(accessoryName + (this.config?.ipAddress || "")),
+      this.config.name,
+      this.api.hap.uuid.generate(this.config.name),
       this.api.hap.Categories.CAMERA
     );
     this.camera = new TAPOCamera(this.log, this.config);
@@ -546,14 +539,14 @@ export class CameraAccessory {
       eventEmitter.addListener("motion", (motionDetected) => {
         this.log.debug("Motion detected", motionDetected);
 
-        if (motionDetected && this.nightVisionDetector) {
-          this.nightVisionDetector.triggerCheck();
-        }
-
         this.motionSensorService?.updateCharacteristic(
           this.api.hap.Characteristic.MotionDetected,
           motionDetected
         );
+
+        if (motionDetected && this.nightVisionDetector) {
+          this.nightVisionDetector.triggerCheck();
+        }
       });
     } catch (err) {
       this.log.error("Error setting up motion sensor accessory:", err);
@@ -680,7 +673,7 @@ export class CameraAccessory {
         }
       });
 
-      const pollInterval = this.config.nightVisionPollInterval || 10;
+      const pollInterval = this.config.nightVisionPollInterval || 30;
       this.nightVisionDetector.start(pollInterval);
     } catch (err) {
       this.log.error("Error setting up night vision sensor accessory:", err);
