@@ -12,8 +12,10 @@ If your video feed is not working, try to check if any of the parameters at the 
 > ~On firmware build 230921 and higher, [please follow this guide](https://github.com/JurajNyiri/HomeAssistant-Tapo-Control/blob/main/add_camera_with_new_firmware.md) to make your camera compatible with this integration.~
 > 
 > **Update March 2025**
-> In the Tapo app, go to "Me" (bottom right), then "Tapo Lab", then "Third-Party Compatibility", change to "On" and the integration should start working again.
-> 
+> ~In the Tapo app, go to "Me" (bottom right), then "Tapo Lab", then "Third-Party Compatibility", change to "On" and the integration should start working again.~
+>
+> **Update September 2026**
+> In the Tapo app, go to "Me" (bottom right), then under "Services" select "Third-Party Services", and turn on "Third-Party Compatibility".
 
 ### Toggle accessories
 
