@@ -219,7 +219,7 @@ export class NightVisionDetector extends EventEmitter {
       "error",
       "-rtsp_transport",
       rtspTransport,
-      "-stimeout",
+      "-timeout",
       "5000000",
       "-buffer_size",
       "512000",

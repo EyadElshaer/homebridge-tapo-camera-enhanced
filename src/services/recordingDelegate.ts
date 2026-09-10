@@ -97,7 +97,7 @@ export class RecordingDelegate implements CameraRecordingDelegate {
       this.cameraConfig.debug ? "verbose" : "error",
       "-rtsp_transport",
       rtspTransport,
-      "-stimeout",
+      "-timeout",
       "5000000",
       "-buffer_size",
       "1024000",
