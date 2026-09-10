@@ -222,10 +222,10 @@ export class CameraAccessory {
           }
         })
         .onSet(async (newValue) => {
+          const value = Boolean(newValue);
           try {
-            const value = Boolean(newValue);
-            this.log.debug(
-              `Setting "${tapoServiceStr}" to ${value ? "on" : "off"}...`
+            this.log.info(
+              `[Apple Home] Setting "${name}" (${tapoServiceStr}) to ${value ? "on" : "off"}...`
             );
             await this.camera.setStatus(tapoServiceStr, value);
             this.cachedStatus[tapoServiceStr] = value;
@@ -233,7 +233,10 @@ export class CameraAccessory {
               .getCharacteristic(this.api.hap.Characteristic.On)
               .updateValue(value);
           } catch (err) {
-            this.log.error("Error setting status:", err);
+            this.log.error(
+              `Failed setting "${name}" (${tapoServiceStr}) to ${value ? "on" : "off"}:`,
+              err
+            );
             throw new this.api.hap.HapStatusError(
               this.api.hap.HAPStatus.RESOURCE_DOES_NOT_EXIST
             );

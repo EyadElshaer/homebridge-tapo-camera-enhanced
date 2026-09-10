@@ -690,21 +690,224 @@ export class TAPOCamera extends OnvifCamera {
       },
     }),
     floodLight: (value) => ({
-      // Floodlight state belongs to the white-lamp API. setLdc controls lens
-      // distortion correction, so using it here accepts the request shape in
-      // TypeScript but leaves the physical light unchanged on the camera.
       method: "setWhitelampConfig",
       params: {
         image: {
           switch: {
             force_wtl_state: value ? "on" : "off",
+            wtl_force_time: value ? 300 : 0,
           },
         },
       },
     }),
   };
 
+  private workingFloodlightMethodIndex: number | null = null;
+
+  private getFloodlightCandidateRequests(value: boolean): Array<{
+    method: string;
+    params: Record<string, unknown>;
+  }> {
+    const strVal = value ? "on" : "off";
+    return [
+      // 1. setWhitelampConfig with switch force_wtl_state and wtl_force_time (standard Tapo app payload)
+      {
+        method: "setWhitelampConfig",
+        params: {
+          image: {
+            switch: {
+              force_wtl_state: strVal,
+              wtl_force_time: value ? 300 : 0,
+            },
+          },
+        },
+      },
+      // 2. setWhitelampConfig with switch force_wtl_state only
+      {
+        method: "setWhitelampConfig",
+        params: {
+          image: {
+            switch: {
+              force_wtl_state: strVal,
+            },
+          },
+        },
+      },
+      // 3. setWhitelampConfig with common force_wtl_state
+      {
+        method: "setWhitelampConfig",
+        params: {
+          image: {
+            common: {
+              force_wtl_state: strVal,
+            },
+          },
+        },
+      },
+      // 4. setWhitelampConfig with direct image force_wtl_state
+      {
+        method: "setWhitelampConfig",
+        params: {
+          image: {
+            force_wtl_state: strVal,
+          },
+        },
+      },
+      // 5. setForceWhitelampState with switch
+      {
+        method: "setForceWhitelampState",
+        params: {
+          image: {
+            switch: {
+              force_wtl_state: strVal,
+            },
+          },
+        },
+      },
+      // 6. setForceWhitelampState with direct image force_wtl_state
+      {
+        method: "setForceWhitelampState",
+        params: {
+          image: {
+            force_wtl_state: strVal,
+          },
+        },
+      },
+      // 7. setWhitelampStatus with set_wtl_status (on/off)
+      {
+        method: "setWhitelampStatus",
+        params: {
+          image: {
+            set_wtl_status: {
+              status: strVal,
+            },
+          },
+        },
+      },
+      // 8. setWhitelampStatus with set_wtl_status (numeric 1/0)
+      {
+        method: "setWhitelampStatus",
+        params: {
+          image: {
+            set_wtl_status: {
+              status: value ? 1 : 0,
+            },
+          },
+        },
+      },
+      // 9. setWhitelampStatus with wtl_status (on/off)
+      {
+        method: "setWhitelampStatus",
+        params: {
+          image: {
+            wtl_status: {
+              status: strVal,
+            },
+          },
+        },
+      },
+      // 10. setNightVisionModeConfig (full_color vs inf_night_vision fallback)
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            common: {
+              night_vision_mode: value ? "full_color" : "inf_night_vision",
+            },
+          },
+        },
+      },
+    ];
+  }
+
+  private async setFloodLightStatus(value: boolean): Promise<object> {
+    const candidates = this.getFloodlightCandidateRequests(value);
+
+    // If a working candidate index is already known, try it first
+    if (this.workingFloodlightMethodIndex !== null) {
+      const preferred = candidates[this.workingFloodlightMethodIndex];
+      if (preferred) {
+        try {
+          const responseData = await this.apiRequest({
+            method: "multipleRequest",
+            params: {
+              requests: [preferred as unknown as TAPOCameraSetRequest],
+            },
+          });
+          if (responseData.error_code === 0) {
+            const op = responseData.result.responses.find(
+              (e) => e.method === preferred.method
+            );
+            if (op && op.error_code === 0) {
+              this.log.debug(
+                `Floodlight set to ${value ? "on" : "off"} using cached candidate #${this.workingFloodlightMethodIndex} (${preferred.method})`
+              );
+              return op.result || {};
+            }
+          }
+        } catch (err) {
+          this.log.debug(
+            `Cached floodlight candidate #${this.workingFloodlightMethodIndex} failed, retrying other candidates:`,
+            err
+          );
+        }
+      }
+      this.workingFloodlightMethodIndex = null;
+    }
+
+    const errors: string[] = [];
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
+      try {
+        const responseData = await this.apiRequest({
+          method: "multipleRequest",
+          params: {
+            requests: [candidate as unknown as TAPOCameraSetRequest],
+          },
+        });
+
+        if (responseData.error_code !== 0) {
+          errors.push(
+            `#${i} (${candidate.method}): error_code ${responseData.error_code}`
+          );
+          continue;
+        }
+
+        const op = responseData.result.responses.find(
+          (e) => e.method === candidate.method
+        );
+        if (op && op.error_code === 0) {
+          this.workingFloodlightMethodIndex = i;
+          this.log.info(
+            `Successfully set floodlight to ${value ? "on" : "off"} on camera "${this.config.name}" using candidate #${i} (${candidate.method})`
+          );
+          return op.result || {};
+        } else {
+          errors.push(
+            `#${i} (${candidate.method}): operation error_code ${op?.error_code}`
+          );
+        }
+      } catch (err) {
+        errors.push(
+          `#${i} (${candidate.method}): ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    const failureSummary = errors.join("; ");
+    this.log.error(
+      `Failed to set floodlight to ${value ? "on" : "off"} on camera "${this.config.name}". Attempts: ${failureSummary}`
+    );
+    throw new Error(
+      `Failed to perform floodLight action on camera "${this.config.name}": ${failureSummary}`
+    );
+  }
+
   async setStatus(service: keyof Status, value: boolean) {
+    if (service === "floodLight") {
+      return this.setFloodLightStatus(value);
+    }
+
     const responseData = await this.apiRequest({
       method: "multipleRequest",
       params: {
@@ -802,6 +1005,22 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       } as TAPOCameraGetRequest);
+      requests.push({
+        method: "getWhitelampConfig",
+        params: {
+          image: {
+            name: ["switch", "common", "get_wtl_status"],
+          },
+        },
+      } as TAPOCameraGetRequest);
+      requests.push({
+        method: "getNightVisionModeConfig",
+        params: {
+          image: {
+            name: ["common", "switch"],
+          },
+        },
+      } as TAPOCameraGetRequest);
     }
 
     const responseData = await this.apiRequest({
@@ -822,14 +1041,110 @@ export class TAPOCamera extends OnvifCamera {
       (r) => r.method === "getDetectionConfig"
     );
     const led = operations.find((r) => r.method === "getLedStatus");
-    const wtlStatus = operations.find((r) => r.method === "getWhitelampStatus");
+
+    let isFloodLightOn: boolean | undefined = undefined;
+    if (this.config.enableFloodLightAccessory) {
+      const wtlStatus = operations.find(
+        (r) => r.method === "getWhitelampStatus"
+      );
+      const wtlConfig = operations.find(
+        (r) => r.method === "getWhitelampConfig"
+      );
+      const nvConfig = operations.find(
+        (r) => r.method === "getNightVisionModeConfig"
+      );
+
+      // 1. Parse getWhitelampStatus response
+      if (
+        wtlStatus &&
+        wtlStatus.error_code === 0 &&
+        wtlStatus.result &&
+        typeof wtlStatus.result === "object"
+      ) {
+        const img = (wtlStatus.result as Record<string, unknown>).image as
+          | Record<string, unknown>
+          | undefined;
+        if (img) {
+          const wtlObj = (img.get_wtl_status ||
+            img.wtl_status ||
+            img.switch) as Record<string, unknown> | undefined;
+          if (wtlObj) {
+            const s = wtlObj.status ?? wtlObj.force_wtl_state;
+            if (s === "on" || s === "1" || s === 1 || s === true) {
+              isFloodLightOn = true;
+            } else if (s === "off" || s === "0" || s === 0 || s === false) {
+              isFloodLightOn = false;
+            }
+          }
+        }
+      }
+
+      // 2. Parse getWhitelampConfig response
+      if (
+        isFloodLightOn === undefined &&
+        wtlConfig &&
+        wtlConfig.error_code === 0 &&
+        wtlConfig.result &&
+        typeof wtlConfig.result === "object"
+      ) {
+        const img = (wtlConfig.result as Record<string, unknown>).image as
+          | Record<string, unknown>
+          | undefined;
+        if (img) {
+          const sw = img.switch as Record<string, unknown> | undefined;
+          const common = img.common as Record<string, unknown> | undefined;
+          const forceState = (sw?.force_wtl_state ??
+            common?.force_wtl_state ??
+            img.force_wtl_state) as unknown;
+          if (
+            forceState === "on" ||
+            forceState === "1" ||
+            forceState === 1 ||
+            forceState === true
+          ) {
+            isFloodLightOn = true;
+          } else if (
+            forceState === "off" ||
+            forceState === "0" ||
+            forceState === 0 ||
+            forceState === false
+          ) {
+            isFloodLightOn = false;
+          }
+        }
+      }
+
+      // 3. Parse getNightVisionModeConfig response (fallback)
+      if (
+        isFloodLightOn === undefined &&
+        nvConfig &&
+        nvConfig.error_code === 0 &&
+        nvConfig.result &&
+        typeof nvConfig.result === "object"
+      ) {
+        const img = (nvConfig.result as Record<string, unknown>).image as
+          | Record<string, unknown>
+          | undefined;
+        if (img) {
+          const common = img.common as Record<string, unknown> | undefined;
+          const sw = img.switch as Record<string, unknown> | undefined;
+          const mode = (common?.night_vision_mode ??
+            sw?.night_vision_mode ??
+            img.night_vision_mode) as unknown;
+          if (mode === "full_color" || mode === "wtl_night_vision") {
+            isFloodLightOn = true;
+          } else if (mode === "inf_night_vision" || mode === "smart") {
+            isFloodLightOn = false;
+          }
+        }
+      }
+    }
 
     if (!alert) this.log.debug("No alert config found");
     if (!lensMask) this.log.debug("No lens mask config found");
     if (!notifications) this.log.debug("No notifications config found");
     if (!motionDetection) this.log.debug("No motion detection config found");
     if (!led) this.log.debug("No led config found");
-    if (this.config.enableFloodLightAccessory && !wtlStatus) this.log.debug("No whitelamp status found");
 
     return {
       alarm: alert
@@ -847,9 +1162,7 @@ export class TAPOCamera extends OnvifCamera {
         ? motionDetection.result.motion_detection.motion_det.enabled === "on"
         : undefined,
       led: led ? led.result.led.config.enabled === "on" : undefined,
-      floodLight: wtlStatus && wtlStatus.error_code === 0 && "image" in wtlStatus.result && "get_wtl_status" in wtlStatus.result.image
-        ? (wtlStatus.result.image.get_wtl_status as Record<string, unknown>).status === "on" || (wtlStatus.result.image.get_wtl_status as Record<string, unknown>).status === "1"
-        : undefined,
+      floodLight: isFloodLightOn,
     };
   }
 }

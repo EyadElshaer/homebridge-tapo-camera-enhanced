@@ -51,7 +51,26 @@ export type TAPOCameraGetRequest =
       method: "getWhitelampStatus";
       params: {
         image: {
-          get_wtl_status: "null";
+          get_wtl_status?: "null" | string[];
+          [key: string]: unknown;
+        };
+      };
+    }
+  | {
+      method: "getWhitelampConfig";
+      params: {
+        image: {
+          name: string[];
+          [key: string]: unknown;
+        };
+      };
+    }
+  | {
+      method: "getNightVisionModeConfig";
+      params: {
+        image: {
+          name: string[];
+          [key: string]: unknown;
         };
       };
     }
@@ -64,12 +83,8 @@ export type TAPOCameraGetRequest =
       };
     }
   | {
-      method: "getWhitelampStatus";
-      params: {
-        image: {
-          get_wtl_status: string[];
-        };
-      };
+      method: string;
+      params: Record<string, unknown>;
     };
 
 export type TAPOCameraSetRequest =
@@ -128,15 +143,8 @@ export type TAPOCameraSetRequest =
       };
     }
   | {
-      method: "setWhitelampConfig";
-      params: {
-        image: {
-          switch: {
-            wtl_intensity_level?: string;
-            force_wtl_state?: "on" | "off";
-          };
-        };
-      };
+      method: "setWhitelampConfig" | "setForceWhitelampState" | "setWhitelampStatus" | "setNightVisionModeConfig" | string;
+      params: Record<string, unknown>;
     };
 
 export type TAPOCameraUnencryptedRequest = {
@@ -242,10 +250,54 @@ export type TAPOCameraResponseGetLdc = {
 export type TAPOCameraResponseGetWhitelampStatus = {
   method: "getWhitelampStatus";
   result: {
-    image: {
-      switch: {
-        force_wtl_state: "on" | "off";
+    image?: {
+      get_wtl_status?: {
+        status?: string | number | boolean;
+        rest_time?: number;
       };
+      wtl_status?: {
+        status?: string | number | boolean;
+        rest_time?: number;
+      };
+      switch?: {
+        force_wtl_state?: "on" | "off" | string;
+        status?: string | number | boolean;
+      };
+      [key: string]: unknown;
+    };
+  };
+  error_code: number;
+};
+
+export type TAPOCameraResponseGetWhitelampConfig = {
+  method: "getWhitelampConfig";
+  result: {
+    image?: {
+      switch?: {
+        force_wtl_state?: "on" | "off" | string;
+        wtl_intensity_level?: string | number;
+        wtl_force_time?: string | number;
+      };
+      common?: {
+        force_wtl_state?: "on" | "off" | string;
+      };
+      [key: string]: unknown;
+    };
+  };
+  error_code: number;
+};
+
+export type TAPOCameraResponseGetNightVisionModeConfig = {
+  method: "getNightVisionModeConfig";
+  result: {
+    image?: {
+      common?: {
+        night_vision_mode?: string;
+      };
+      switch?: {
+        night_vision_mode?: string;
+      };
+      [key: string]: unknown;
     };
   };
   error_code: number;
@@ -259,6 +311,9 @@ export type TAPOCameraResponseSet = {
     | "setDetectionConfig"
     | "setLedStatus"
     | "setWhitelampConfig"
+    | "setForceWhitelampState"
+    | "setWhitelampStatus"
+    | "setNightVisionModeConfig"
     | "setLdc";
   result: object;
   error_code: number;
@@ -271,7 +326,9 @@ export type TAPOCameraResponseGet =
   | TAPOCameraResponseGetMotionDetection
   | TAPOCameraResponseGetLed
   | TAPOCameraResponseGetLdc
-  | TAPOCameraResponseGetWhitelampStatus;
+  | TAPOCameraResponseGetWhitelampStatus
+  | TAPOCameraResponseGetWhitelampConfig
+  | TAPOCameraResponseGetNightVisionModeConfig;
 
 export type TAPOBasicInfo = {
   device_type?: string;
