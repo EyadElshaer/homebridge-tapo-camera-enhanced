@@ -252,6 +252,7 @@ export class CameraAccessory {
     const streamUrl = this.camera.getAuthenticatedStreamUrl(
       Boolean(this.config.lowQuality)
     );
+    const subStreamUrl = this.camera.getAuthenticatedStreamUrl(true);
 
     const isTwoWayAudio = Boolean(
       this.config.twoWayAudio ||
@@ -265,6 +266,10 @@ export class CameraAccessory {
 
     const vcodec = this.config.videoCodec ?? "copy";
     const rtspTransport = this.config.rtspTransport ?? "tcp";
+    const stillImageSource =
+      this.config.videoConfig?.stillImageSource ||
+      `-rtsp_transport ${rtspTransport} -buffer_size 1024000 -max_delay 500000 -fflags +genpts -stimeout 5000000 -i ${subStreamUrl}`;
+
     const config: VideoConfig = {
       audio: true, // Set audio as true as most of TAPO cameras have audio
       vcodec: vcodec,
@@ -280,6 +285,7 @@ export class CameraAccessory {
       forceMax: this.config.videoForceMax,
       // async resampling with 1000 max drift prevents audio/video delay accumulation while smoothing pcm_alaw timestamps
       mapaudio: "0:a:0 -af aresample=async=1000",
+      stillImageSource,
       ...(isTwoWayAudio && returnAudioTarget
         ? {
             returnAudioTarget,
@@ -290,7 +296,7 @@ export class CameraAccessory {
         : {}),
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport ${rtspTransport} -fflags +nobuffer+genpts+discardcorrupt -flags low_delay -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
+      source: `-rtsp_transport ${rtspTransport} -buffer_size 1024000 -max_delay 500000 -fflags +genpts -stimeout 5000000 -analyzeduration 1000000 -probesize 1000000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
@@ -563,7 +569,11 @@ export class CameraAccessory {
           motionDetected
         );
 
-        if (motionDetected && this.nightVisionDetector) {
+        if (
+          motionDetected &&
+          this.nightVisionDetector &&
+          !this.isStreamActive()
+        ) {
           this.nightVisionDetector.triggerCheck();
         }
       });

@@ -153,6 +153,13 @@ export class NightVisionDetector extends EventEmitter {
       return this.currentState;
     }
 
+    if (this.isStreamActive && this.isStreamActive()) {
+      this.log.debug(
+        "NightVisionDetector: Skipping darkness check because a live stream or recording is currently active."
+      );
+      return this.currentState;
+    }
+
     this.isChecking = true;
     this.lastCheckTime = Date.now();
 
@@ -212,12 +219,14 @@ export class NightVisionDetector extends EventEmitter {
       "error",
       "-rtsp_transport",
       rtspTransport,
-      "-timeout",
+      "-stimeout",
       "5000000",
+      "-buffer_size",
+      "512000",
+      "-max_delay",
+      "500000",
       "-fflags",
-      "+nobuffer+genpts+discardcorrupt",
-      "-flags",
-      "low_delay",
+      "+genpts",
       "-an",
       "-analyzeduration",
       "500000",
