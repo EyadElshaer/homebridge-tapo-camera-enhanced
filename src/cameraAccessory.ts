@@ -268,7 +268,7 @@ export class CameraAccessory {
     const rtspTransport = this.config.rtspTransport ?? "tcp";
     const stillImageSource =
       this.config.videoConfig?.stillImageSource ||
-      `-rtsp_transport ${rtspTransport} -timeout 5000000 -flags low_delay -fflags +nobuffer+genpts -probesize 32768 -analyzeduration 0 -i ${subStreamUrl}`;
+      `-rtsp_transport ${rtspTransport} -buffer_size 512000 -max_delay 500000 -fflags +genpts -timeout 5000000 -analyzeduration 500000 -probesize 500000 -i ${subStreamUrl}`;
 
     const config: VideoConfig = {
       audio: true, // Set audio as true as most of TAPO cameras have audio
@@ -296,7 +296,7 @@ export class CameraAccessory {
         : {}),
       ...(this.config.videoConfig || {}),
       // We add this at the end as the user must not be able to override it
-      source: `-rtsp_transport ${rtspTransport} -buffer_size 1024000 -flags low_delay -fflags +genpts -timeout 5000000 -analyzeduration 500000 -probesize 500000 -i ${streamUrl}`,
+      source: `-rtsp_transport ${rtspTransport} -buffer_size 1024000 -max_delay 500000 -fflags +genpts -timeout 5000000 -analyzeduration 1000000 -probesize 1000000 -i ${streamUrl}`,
     };
 
     if (isTwoWayAudio && returnAudioTarget && !config.returnAudioTarget) {
