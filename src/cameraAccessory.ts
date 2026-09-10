@@ -60,6 +60,7 @@ export type CameraConfig = {
   videoMaxBirate?: number;
   videoPacketSize?: number;
   videoCodec?: string;
+  videoMaxStreams?: number;
 
   videoConfig?: VideoConfig;
 
@@ -283,6 +284,8 @@ export class CameraAccessory {
       maxBitrate: this.config.videoMaxBitrate ?? this.config.videoMaxBirate,
       packetSize: this.config.videoPacketSize,
       forceMax: this.config.videoForceMax,
+      maxStreams:
+        this.config.videoMaxStreams ?? this.config.videoConfig?.maxStreams ?? 2,
       // async resampling with 1000 max drift prevents audio/video delay accumulation while smoothing pcm_alaw timestamps
       mapaudio: "0:a:0 -af aresample=async=1000",
       stillImageSource,
@@ -427,7 +430,10 @@ export class CameraAccessory {
         ];
 
         const controller = new this.api.hap.CameraController({
-          cameraStreamCount: this.config.videoConfig?.maxStreams || 2,
+          cameraStreamCount:
+            this.config.videoMaxStreams ??
+            this.config.videoConfig?.maxStreams ??
+            2,
           delegate: delegate,
           streamingOptions: {
             supportedCryptoSuites: [
