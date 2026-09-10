@@ -173,11 +173,12 @@ export class CameraAccessory {
     serviceType: any = this.api.hap.Service.Switch
   ) {
     try {
-      const toggleService = this.accessory.addService(
-        serviceType,
-        name,
-        tapoServiceStr
-      );
+      const existingService =
+        this.accessory.getServiceById(serviceType, tapoServiceStr) ||
+        this.accessory.getService(name);
+      const toggleService =
+        existingService ||
+        this.accessory.addService(serviceType, name, tapoServiceStr);
       this.toggleAccessories[tapoServiceStr] = toggleService;
 
       toggleService.addOptionalCharacteristic(

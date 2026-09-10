@@ -710,7 +710,71 @@ export class TAPOCamera extends OnvifCamera {
   }> {
     const strVal = value ? "on" : "off";
     return [
-      // 1. setWhitelampConfig with switch force_wtl_state and wtl_force_time (standard Tapo app payload)
+      // 1. setNightVisionModeConfig with common night_vision_mode (Tapo C510W, C520WS, C500, C320WS standard spotlight mode)
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            common: {
+              night_vision_mode: value ? "wtl_night_vision" : "inf_night_vision",
+            },
+          },
+        },
+      },
+      // 2. setNightVisionModeConfig with switch night_vision_mode
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            switch: {
+              night_vision_mode: value ? "wtl_night_vision" : "inf_night_vision",
+            },
+          },
+        },
+      },
+      // 3. setNightVisionModeConfig with direct image night_vision_mode
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            night_vision_mode: value ? "wtl_night_vision" : "inf_night_vision",
+          },
+        },
+      },
+      // 4. setNightVisionModeConfig with common full_color
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            common: {
+              night_vision_mode: value ? "full_color" : "inf_night_vision",
+            },
+          },
+        },
+      },
+      // 5. setNightVisionModeConfig with switch full_color
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            switch: {
+              night_vision_mode: value ? "full_color" : "inf_night_vision",
+            },
+          },
+        },
+      },
+      // 6. setNightVisionModeConfig with common smart (md_night_vision off fallback)
+      {
+        method: "setNightVisionModeConfig",
+        params: {
+          image: {
+            common: {
+              night_vision_mode: value ? "wtl_night_vision" : "md_night_vision",
+            },
+          },
+        },
+      },
+      // 7. setWhitelampConfig with switch force_wtl_state and wtl_force_time (standard Tapo app payload)
       {
         method: "setWhitelampConfig",
         params: {
@@ -722,7 +786,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 2. setWhitelampConfig with switch force_wtl_state only
+      // 8. setWhitelampConfig with switch force_wtl_state only
       {
         method: "setWhitelampConfig",
         params: {
@@ -733,7 +797,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 3. setWhitelampConfig with common force_wtl_state
+      // 9. setWhitelampConfig with common force_wtl_state
       {
         method: "setWhitelampConfig",
         params: {
@@ -744,7 +808,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 4. setWhitelampConfig with direct image force_wtl_state
+      // 10. setWhitelampConfig with direct image force_wtl_state
       {
         method: "setWhitelampConfig",
         params: {
@@ -753,7 +817,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 5. setForceWhitelampState with switch
+      // 11. setForceWhitelampState with switch
       {
         method: "setForceWhitelampState",
         params: {
@@ -764,7 +828,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 6. setForceWhitelampState with direct image force_wtl_state
+      // 12. setForceWhitelampState with direct image force_wtl_state
       {
         method: "setForceWhitelampState",
         params: {
@@ -773,7 +837,14 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 7. setWhitelampStatus with set_wtl_status (on/off)
+      // 13. setForceWhitelampState with root force_wtl_state
+      {
+        method: "setForceWhitelampState",
+        params: {
+          force_wtl_state: strVal,
+        },
+      },
+      // 14. setWhitelampStatus with set_wtl_status (on/off)
       {
         method: "setWhitelampStatus",
         params: {
@@ -784,7 +855,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 8. setWhitelampStatus with set_wtl_status (numeric 1/0)
+      // 15. setWhitelampStatus with set_wtl_status (numeric 1/0)
       {
         method: "setWhitelampStatus",
         params: {
@@ -795,7 +866,7 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 9. setWhitelampStatus with wtl_status (on/off)
+      // 16. setWhitelampStatus with wtl_status (on/off)
       {
         method: "setWhitelampStatus",
         params: {
@@ -806,13 +877,14 @@ export class TAPOCamera extends OnvifCamera {
           },
         },
       },
-      // 10. setNightVisionModeConfig (full_color vs inf_night_vision fallback)
+      // 17. setAlertConfig (light alarm / spotlight trigger)
       {
-        method: "setNightVisionModeConfig",
+        method: "setAlertConfig",
         params: {
-          image: {
-            common: {
-              night_vision_mode: value ? "full_color" : "inf_night_vision",
+          msg_alarm: {
+            chn1_msg_alarm_info: {
+              alarm_mode: ["light"],
+              enabled: strVal,
             },
           },
         },
@@ -1114,7 +1186,7 @@ export class TAPOCamera extends OnvifCamera {
         }
       }
 
-      // 3. Parse getNightVisionModeConfig response (fallback)
+      // 3. Parse getNightVisionModeConfig response (fallback / Tapo C510W, C520WS, C500, C320WS)
       if (
         isFloodLightOn === undefined &&
         nvConfig &&
@@ -1131,10 +1203,27 @@ export class TAPOCamera extends OnvifCamera {
           const mode = (common?.night_vision_mode ??
             sw?.night_vision_mode ??
             img.night_vision_mode) as unknown;
-          if (mode === "full_color" || mode === "wtl_night_vision") {
-            isFloodLightOn = true;
-          } else if (mode === "inf_night_vision" || mode === "smart") {
-            isFloodLightOn = false;
+          if (typeof mode === "string") {
+            const lowerMode = mode.toLowerCase();
+            if (
+              lowerMode === "wtl_night_vision" ||
+              lowerMode === "full_color" ||
+              lowerMode === "on"
+            ) {
+              isFloodLightOn = true;
+            } else if (
+              lowerMode === "inf_night_vision" ||
+              lowerMode === "md_night_vision" ||
+              lowerMode === "smart" ||
+              lowerMode === "shed_night_vision" ||
+              lowerMode === "dbl_night_vision" ||
+              lowerMode === "off" ||
+              lowerMode === "auto"
+            ) {
+              isFloodLightOn = false;
+            }
+          } else if (typeof mode === "boolean") {
+            isFloodLightOn = mode;
           }
         }
       }
