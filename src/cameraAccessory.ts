@@ -782,6 +782,13 @@ export class CameraAccessory {
     } catch (err) {
       this.log.error("Error getting status:", err);
       this.isOffline = true;
+      if (this.motionSensorService) {
+        this.motionSensorService.updateCharacteristic(
+          this.api.hap.Characteristic.MotionDetected,
+          false
+        );
+      }
+      this.camera.resetMotionState();
     }
   }
 

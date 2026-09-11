@@ -104,10 +104,12 @@ export interface AudioEncoderConfiguration {
 }
 
 export interface SimpleItem {
-  $: {
-    Value: string | boolean;
-    Name: string;
+  $?: {
+    Value?: string | boolean | number;
+    Name?: string;
   };
+  Value?: string | boolean | number;
+  Name?: string;
 }
 
 export interface Translate {
@@ -252,13 +254,13 @@ export type DeviceInformation = {
 export type ConnectionCallback = (error?: Error) => void;
 
 export interface NotificationMessage {
-  topic: { _: string };
-  message: {
-    message: {
-      $: object;
-      source: object;
-      data: {
-        simpleItem: SimpleItem;
+  topic?: { _: string } | string;
+  message?: {
+    message?: {
+      $?: object;
+      source?: object;
+      data?: {
+        simpleItem?: SimpleItem | SimpleItem[];
       };
     };
   };
@@ -276,7 +278,12 @@ export interface CamOptions {
 
 export interface Cam extends EventEmitter {
   connect(callback: ConnectionCallback): void;
-  on(event: "event", listener: (message: NotificationMessage) => void): this;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(event: string | symbol, listener: (...args: any[]) => void): this;
+  unsubscribe(
+    callback?: (error?: Error) => void,
+    preserveListeners?: boolean
+  ): void;
   getDeviceInformation(
     callback: (error: Error, deviceInformation: DeviceInformation) => void
   ): void;
